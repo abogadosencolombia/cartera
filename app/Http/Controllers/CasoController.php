@@ -146,6 +146,8 @@ class CasoController extends Controller
         // Hacemos que la relación 'auditoria' use los datos de 'bitacoras' para consistencia
         $caso->setRelation('auditoria', $caso->bitacoras);
 
+        
+
         $plantillasDisponibles = PlantillaDocumento::where('activa', true)
             ->where(function ($query) use ($caso) {
                 $query->where('cooperativa_id', $caso->cooperativa_id)->orWhereNull('cooperativa_id');
@@ -161,6 +163,7 @@ class CasoController extends Controller
                 'delete' => Auth::user()->can('delete', $caso),
             ]
         ]);
+
     }
 
     public function edit(Caso $caso): Response

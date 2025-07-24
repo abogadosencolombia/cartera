@@ -125,8 +125,6 @@ const features = [
         <footer class="py-16 text-center text-sm text-gray-400 border-t border-white/10">
             <div class="flex justify-center items-center space-x-4">
                 <span>Desarrollado por <a href="https://centipy.com" target="_blank" class="font-semibold underline hover:text-[#7F5AF0] transition-colors duration-300">Centipy.com</a></span>
-                <span class="text-gray-700">|</span>
-                <span>Potenciado por <a href="https://laravel.com" target="_blank" class="font-semibold underline hover:text-red-500 transition-colors duration-300">Laravel</a></span>
             </div>
             <p class="mt-4">© {{ new Date().getFullYear() }} Cobro Cartera. Todos los derechos reservados.</p>
         </footer>

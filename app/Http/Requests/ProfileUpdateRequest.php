@@ -16,22 +16,13 @@ class ProfileUpdateRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // Reglas existentes para la información del perfil
-            'name' => ['sometimes', 'required', 'string', 'max:255'],
-            'email' => [
-                'sometimes',
-                'required',
-                'string',
-                'lowercase',
-                'email',
-                'max:255',
-                Rule::unique(User::class)->ignore($this->user()->id),
-            ],
-            // --- INICIO: Nuevas reglas para las preferencias de notificación ---
-            'preferencias_notificacion' => ['sometimes', 'required', 'array'],
-            'preferencias_notificacion.email' => ['required', 'boolean'],
-            'preferencias_notificacion.in-app' => ['required', 'boolean'],
-            // --- FIN: Nuevas reglas ---
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique(User::class)->ignore($this->user()->id)],
+            // --- LÍNEAS NUEVAS AQUÍ ---
+            'preferencias_notificacion' => ['sometimes', 'array'],
+            'preferencias_notificacion.email' => ['boolean'],
+            'preferencias_notificacion.system' => ['boolean'],
+            // ------------------------
         ];
     }
 }

@@ -7,14 +7,16 @@ import { Transition } from 'vue';
 
 const user = usePage().props.auth.user;
 
+// Ajustamos las claves para que coincidan con el backend: 'email' y 'system'
 const form = useForm({
     preferencias_notificacion: {
         email: user.preferencias_notificacion?.email ?? true,
-        'in-app': user.preferencias_notificacion?.['in-app'] ?? true,
+        system: user.preferencias_notificacion?.system ?? true, // Cambiamos 'in-app' por 'system'
     },
 });
 
 const submit = () => {
+    // Apuntamos a la ruta 'profile.update' con el método PATCH
     form.patch(route('profile.update'), {
         preserveScroll: true,
     });
@@ -33,8 +35,8 @@ const submit = () => {
         <form @submit.prevent="submit" class="mt-6 space-y-6">
             <div class="space-y-4">
                  <label class="flex items-center">
-                    <Checkbox v-model="form.preferencias_notificacion['in-app']" :checked="form.preferencias_notificacion['in-app']" />
-                    <span class="ms-2 text-sm text-gray-600 dark:text-gray-400">En la Aplicación (Campana de Notificaciones)</span>
+                    <Checkbox v-model="form.preferencias_notificacion.system" :checked="form.preferencias_notificacion.system" />
+                    <span class="ms-2 text-sm text-gray-600 dark:text-gray-400">Notificaciones del Sistema</span>
                 </label>
                 <label class="flex items-center">
                     <Checkbox v-model="form.preferencias_notificacion.email" :checked="form.preferencias_notificacion.email" />
@@ -51,7 +53,7 @@ const submit = () => {
                     leave-active-class="transition ease-in-out"
                     leave-to-class="opacity-0"
                 >
-                    <p v-if="form.recentlySuccessful" class="text-sm text-gray-600 dark:text-gray-400">Guardado.</p>
+                    <p v-if="form.recentlySuccessful" class="text-sm text-gray-600 dark:text-gray-400">Guardado...</p>
                 </Transition>
             </div>
         </form>

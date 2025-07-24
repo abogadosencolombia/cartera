@@ -43,8 +43,6 @@ import ApplicationLogo from '@/Components/ApplicationLogo.vue';
         <footer class="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
             <div class="flex justify-center items-center space-x-4">
                 <span>Desarrollado por <a href="https://centipy.com" target="_blank" class="underline hover:text-indigo-500">Centipy.com</a></span>
-                <span class="text-gray-300 dark:text-gray-600">|</span>
-                <span>Potenciado por <a href="https://laravel.com" target="_blank" class="underline hover:text-red-500">Laravel</a></span>
             </div>
             <p class="mt-4">© {{ new Date().getFullYear() }} Cooperativas. Todos los derechos reservados.</p>
         </footer>

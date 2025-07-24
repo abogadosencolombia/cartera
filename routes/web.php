@@ -96,16 +96,19 @@ Route::get('/probar-integracion-supersolidaria', function (IntegrationService $i
 // ===== FIN DE RUTAS DE PRUEBA Y SIMULACIÓN =======================
 // =================================================================
 
-
 Route::middleware(['auth', 'verified'])->group(function () {
-    
+
     // --- RUTA DEL DASHBOARD ---
     Route::get('/dashboard', AnaliticaController::class)->name('dashboard');
 
-    // --- RUTAS GENERALES DEL USUARIO ---
+    // --- RUTAS GENERALES DEL USUARIO (PERFIL Y NOTIFICACIONES) ---
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    
+    // 👇 ESTA ES LA RUTA PARA LAS PREFERENCIAS. ESTÁ CORRECTA. 👇
+    Route::patch('/profile/preferences', [ProfileController::class, 'updatePreferences'])->name('profile.preferences.update');
+    
     Route::get('/notificaciones', [NotificacionController::class, 'index'])->name('notificaciones.index');
     Route::patch('/notificaciones/{notificacion}/leer', [NotificacionController::class, 'marcarComoLeida'])->name('notificaciones.leer');
     Route::patch('/notificaciones/{notificacion}/atender', [NotificacionController::class, 'marcarComoAtendida'])->name('notificaciones.atender');

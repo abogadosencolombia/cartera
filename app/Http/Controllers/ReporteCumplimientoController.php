@@ -33,7 +33,7 @@
                 
             // Métrica 4: Lista detallada de todas las fallas activas para la tabla.
             $listadoFallas = ValidacionLegal::where('estado', 'incumple')
-                ->with(['caso.deudor', 'caso.cooperativa']) // Carga relaciones para mostrar info útil
+                ->with(['caso.deudor', 'caso.cooperativa', 'historial.usuario']) // Carga relaciones para mostrar info útil
                 ->orderByRaw("FIELD(nivel_riesgo, 'alto', 'medio', 'bajo')") // Muestra las de riesgo alto primero
                 ->latest('ultima_revision') // Las más recientes primero
                 ->get();

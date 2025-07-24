@@ -39,11 +39,10 @@ const submit = () => {
                     </svg>
                 </Link>
                 <h2 class="text-4xl font-bold mb-4 tracking-wider [text-wrap:balance]">Bienvenido de Nuevo a Cobro Cartera</h2>
-                <p class="text-blue-200 max-w-sm [text-wrap:balance]">La plataforma que redefine la eficiencia en la gestión de carteras.</p>
+                <p class="text-blue-200 max-w-sm mx-auto [text-wrap:balance]">La plataforma que redefine la eficiencia en la gestión de carteras.</p>
             </div>
             <div class="absolute bottom-6 text-center text-sm text-blue-300 z-10 animate-fade-in-up">
-                <p>Desarrollado por <a href="https://centipy.com" target="_blank" class="font-semibold underline hover:text-white transition-colors duration-300">Centipy.com</a></p>
-                <p class="mt-1">Potenciado por <a href="https://laravel.com" target="_blank" class="font-semibold underline hover:text-white transition-colors duration-300">Laravel</a></p>
+                <p>Desarrollado por <a href="https://centipy.com" target="_blank" class="font-semibold underline hover:text-purple-500 transition-colors duration-300">Centipy.com</a></p>
             </div>
         </div>
 
