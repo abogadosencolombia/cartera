@@ -109,7 +109,7 @@ const statusColorClasses = {
                     Ficha del Caso <span class="text-indigo-500">#{{ caso.id }}</span>
                 </h2>
                 <div class="flex items-center space-x-4">
-                    <Link v-if="can.update" :href="route('casos.clonar', caso.id)" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition">Clonar</Link>
+                    <Link v-if="can.update" :href="route('casos.clonar', caso.id)" class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-25 transition ease-in-out duration-150">Clonar</Link>
                     <Link v-if="can.update" :href="route('casos.edit', caso.id)" class="inline-flex items-center px-4 py-2 bg-gray-800 dark:bg-gray-200 border border-transparent rounded-md font-semibold text-xs text-white dark:text-gray-800 uppercase tracking-widest hover:bg-gray-700 dark:hover:bg-white focus:bg-gray-700 dark:focus:bg-white active:bg-gray-900 dark:active:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150">Editar Caso</Link>
                     <Link :href="route('casos.index')" class="text-sm text-gray-600 dark:text-gray-400 hover:underline">&larr; Volver al listado</Link>
                 </div>

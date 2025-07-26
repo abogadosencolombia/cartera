@@ -59,7 +59,7 @@ const formatDate = (dateString) => {
                 <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
                     Gestión de Casos
                 </h2>
-                <Link :href="route('casos.create')" class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition">
+                <Link :href="route('casos.create')" class="inline-flex items-center px-4 py-2 bg-gray-800 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-gray-700 focus:bg-gray-700 active:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150">
                     Registrar Nuevo Caso
                 </Link>
             </div>
@@ -107,7 +107,7 @@ const formatDate = (dateString) => {
                                             {{ caso.user ? caso.user.name : 'N/A' }}
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-4">
-                                            <Link :href="route('casos.show', caso.id)" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300">Ver Ficha</Link>
+                                            <Link :href="route('casos.show', caso.id)" class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-25 transition ease-in-out duration-150">Ver Ficha</Link>
                                             <button v-if="can.delete_cases" @click="confirmCaseDeletion(caso)" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
                                                 <TrashIcon class="h-5 w-5" />
                                             </button>

@@ -47,7 +47,7 @@ const closeModal = () => {
                     Módulo de Cooperativas
                 </h2>
                 <!-- El botón de crear ahora también es condicional -->
-                <Link v-if="can.create_cooperativas" :href="route('cooperativas.create')" class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition">
+                <Link v-if="can.create_cooperativas" :href="route('cooperativas.create')" class="inline-flex items-center px-4 py-2 bg-gray-800 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-gray-700 focus:bg-gray-700 active:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150">
                     Crear Cooperativa
                 </Link>
             </div>
@@ -85,7 +85,7 @@ const closeModal = () => {
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ coop.representante_legal_nombre }}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ coop.contacto_correo }}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-4">
-                                            <Link :href="route('cooperativas.show', coop.id)" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300">Ver Ficha</Link>
+                                            <Link :href="route('cooperativas.show', coop.id)" class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-25 transition ease-in-out duration-150">Ver</Link>
                                             
                                             <!-- BOTÓN DE ELIMINAR (SOLO PARA ADMINS) -->
                                             <button v-if="can.delete_cooperativas" @click="confirmDeletion(coop)" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
