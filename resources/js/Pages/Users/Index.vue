@@ -61,28 +61,47 @@ watch(() => usePage().props.flash, (newFlash) => {
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200 dark:bg-gray-800 dark:divide-gray-700">
-                                <!-- ===== ¡CORRECCIÓN CLAVE AQUÍ! ===== -->
-                                <!-- Iteramos sobre 'users' directamente, no 'users.data' -->
                                 <tr v-for="user in users" :key="user.id">
+
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="text-sm font-medium text-gray-900 dark:text-white">{{ user.name }}</div>
                                         <div class="text-sm text-gray-500">{{ user.email }}</div>
                                     </td>
+
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 uppercase">{{ user.tipo_usuario }}</td>
+
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         {{ user.cooperativas_display }}
                                     </td>
+
                                     <td class="px-6 py-4 whitespace-nowrap text-sm">
                                         <span :class="user.estado_activo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full">
                                             {{ user.estado_activo ? 'Activo' : 'Suspendido' }}
                                         </span>
                                     </td>
+
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
-                                        <Link :href="route('admin.users.edit', user.id)" class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-25 transition ease-in-out duration-150">Editar</Link>
-                                        
-                                        <Link :href="route('admin.users.toggle-status', user.id)" method="patch" as="button" class="ml-4 text-yellow-600 hover:text-yellow-900 dark:text-yellow-400">
-                                            {{ user.estado_activo ? 'Suspender' : 'Reactivar' }}
+                                        <Link :href="route('admin.users.edit', user.id)" 
+                                            class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md font-semibold text-xs text-gray-700 dark:text-gray-300 uppercase tracking-widest shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none disabled:opacity-25 transition ease-in-out duration-150">
+                                            Editar
                                         </Link>
+                                        
+                                        <template v-if="user.estado_activo">
+                                            <Link :href="route('admin.users.toggle-status', user.id)" 
+                                                method="patch" 
+                                                as="button" 
+                                                class="ml-2 inline-flex items-center px-4 py-2 bg-yellow-500 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-yellow-600 active:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 transition ease-in-out duration-150">
+                                                Suspender
+                                            </Link>
+                                        </template>
+                                        <template v-else>
+                                            <Link :href="route('admin.users.toggle-status', user.id)" 
+                                                method="patch" 
+                                                as="button"
+                                                class="ml-2 inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-green-700 active:bg-green-800 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition ease-in-out duration-150">
+                                                Reactivar
+                                            </Link>
+                                        </template>
                                     </td>
                                 </tr>
                             </tbody>

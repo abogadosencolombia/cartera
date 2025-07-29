@@ -6,6 +6,8 @@ use App\Models\Caso;
 use App\Models\PagoCaso;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+// ===== 1. AÑADIMOS EL IMPORT PARA AUTH =====
+use Illuminate\Support\Facades\Auth;
 
 class PagoCasoController extends Controller
 {
@@ -23,7 +25,12 @@ class PagoCasoController extends Controller
             'motivo_pago' => ['required', 'in:total,parcial,acuerdo,sentencia'],
         ]);
 
-        $caso->pagos()->create($validated);
+        // ===== 2. MODIFICAMOS LA CREACIÓN DEL PAGO =====
+        // Usamos array_merge para añadir el ID del usuario logueado a los datos validados
+        $caso->pagos()->create(array_merge(
+            $validated,
+            ['user_id' => Auth::id()]
+        ));
         
         // Opcional: Registrar en la bitácora del caso
         $caso->bitacoras()->create([

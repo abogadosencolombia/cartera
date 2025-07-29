@@ -4,6 +4,10 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 // Añadimos 'router' a la lista de importaciones desde Inertia.
 import { Head, Link, usePage, router } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
+// Añade estas líneas junto a tus otras importaciones de componentes
+import Modal from '@/Components/Modal.vue';
+import DangerButton from '@/Components/DangerButton.vue';
+import SecondaryButton from '@/Components/SecondaryButton.vue';
 
 // Define props received from the controller
 const props = defineProps({
@@ -87,8 +91,16 @@ const deleteToken = () => {
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ new Date(token.updated_at).toLocaleString() }}</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
-                                        <Link :href="route('admin.tokens.edit', token.id)" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400">Editar</Link>
-                                        <button @click="confirmDeletion(token)" class="ml-4 text-red-600 hover:text-red-900 dark:text-red-400">Eliminar</button>
+                                        <div class="flex justify-end items-center space-x-2">
+                                            <Link :href="route('admin.tokens.edit', token.id)"
+                                                class="inline-flex items-center px-3 py-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md font-semibold text-xs text-gray-700 dark:text-gray-300 uppercase tracking-widest shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none disabled:opacity-25 transition ease-in-out duration-150">
+                                                Editar
+                                            </Link>
+                                            
+                                            <DangerButton @click="confirmDeletion(token)" class="!px-3 !py-1 !text-xs">
+                                                Eliminar
+                                            </DangerButton>
+                                        </div>
                                     </td>
                                 </tr>
                             </tbody>
@@ -99,19 +111,21 @@ const deleteToken = () => {
         </div>
 
         <!-- Deletion Confirmation Modal -->
-        <div v-if="showConfirmModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4">
-                <div class="p-6">
-                    <h3 class="text-lg font-bold text-gray-900 dark:text-white">Confirmar Eliminación</h3>
-                    <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                        ¿Estás seguro de que deseas eliminar la credencial para "{{ tokenToDelete.proveedor }}"? Esta acción no se puede deshacer.
-                    </p>
-                    <div class="mt-6 flex justify-end space-x-4">
-                        <button @click="showConfirmModal = false" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300">Cancelar</button>
-                        <button @click="deleteToken" class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700">Eliminar</button>
-                    </div>
+        <Modal :show="showConfirmModal" @close="showConfirmModal = false">
+            <div class="p-6">
+                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
+                    Confirmar Eliminación
+                </h2>
+                <p class="mt-2 text-sm text-gray-600 dark:text-gray-400" v-if="tokenToDelete">
+                    ¿Estás seguro de que deseas eliminar la credencial para "<span class="font-bold">{{ tokenToDelete.proveedor }}</span>"? Esta acción no se puede deshacer.
+                </p>
+                <div class="mt-6 flex justify-end">
+                    <SecondaryButton @click="showConfirmModal = false"> Cancelar </SecondaryButton>
+                    <DangerButton class="ms-3" @click="deleteToken">
+                        Sí, Eliminar
+                    </DangerButton>
                 </div>
             </div>
-        </div>
+        </Modal>
     </AuthenticatedLayout>
 </template>

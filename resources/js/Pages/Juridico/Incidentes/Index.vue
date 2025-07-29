@@ -182,13 +182,18 @@ const estadoClass = (estado) => {
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                             {{ formatDate(incidente.fecha_registro) }}
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                                            <Link :href="route('admin.incidentes-juridicos.show', incidente.id)" class="text-indigo-600 hover:text-indigo-900">
-                                                Ver
-                                            </Link>
-                                            <button @click="confirmIncidentDeletion(incidente)" class="text-red-600 hover:text-red-900">
-                                                Eliminar
-                                            </button>
+                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                            <div class="flex justify-end items-center space-x-2">
+                                                <Link :href="route('admin.incidentes-juridicos.show', incidente.id)"
+                                                    class="inline-flex items-center px-3 py-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md font-semibold text-xs text-gray-700 dark:text-gray-300 uppercase tracking-widest shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none disabled:opacity-25 transition ease-in-out duration-150">
+                                                    Ver
+                                                </Link>
+                                                
+                                                <DangerButton @click="confirmIncidentDeletion(incidente)" 
+                                                            class="!px-3 !py-1 !text-xs">
+                                                    Eliminar
+                                                </DangerButton>
+                                            </div>
                                         </td>
                                     </tr>
                                 </tbody>

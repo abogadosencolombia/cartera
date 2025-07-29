@@ -6,6 +6,10 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+// ===== ¡ASEGÚRATE DE QUE ESTA LÍNEA EXISTA! =====
+// Necesitamos decirle a este archivo que vamos a usar el modelo User.
+use App\Models\User;
+
 class PagoCaso extends Model
 {
     use HasFactory;
@@ -17,6 +21,7 @@ class PagoCaso extends Model
         'monto_pagado',
         'fecha_pago',
         'motivo_pago',
+        'user_id', // <-- Es buena práctica añadir el user_id aquí también
     ];
 
     protected $casts = [
@@ -30,5 +35,16 @@ class PagoCaso extends Model
     public function caso(): BelongsTo
     {
         return $this->belongsTo(Caso::class);
+    }
+
+    // =======================================================
+    // ===== ¡AQUÍ ESTÁ EL MÉTODO QUE SOLUCIONA EL ERROR! =====
+    // =======================================================
+    /**
+     * Obtiene el usuario que registró el pago.
+     */
+    public function usuario(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
     }
 }

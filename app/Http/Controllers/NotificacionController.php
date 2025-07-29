@@ -79,28 +79,31 @@ class NotificacionController extends Controller
 
     public function storeManual(Request $request, Caso $caso): RedirectResponse
     {
-        // ... (este método no necesita cambios)
         $validated = $request->validate([
             'mensaje' => 'required|string|max:1000',
             'programado_para' => 'nullable|date|after_or_equal:today',
         ]);
         $fechaEnvio = $validated['programado_para'] ? Carbon::parse($validated['programado_para']) : now();
-        $destinatarios = collect();
+        
+        // --- LÓGICA SIMPLIFICADA ---
+        // Solo nos preocupamos por notificar al usuario principal del caso.
+        // El sistema de eventos/observadores se encargará de los admins.
         if ($caso->user_id) {
-            $destinatarios->push($caso->user_id);
-        }
-        $adminUserIds = User::where('tipo_usuario', 'admin')->pluck('id');
-        $destinatarios = $destinatarios->merge($adminUserIds)->unique();
-        foreach ($destinatarios as $userId) {
             $caso->notificaciones()->create([
-                'user_id' => $userId,
+                'user_id' => $caso->user_id,
                 'tipo' => 'alerta_manual',
                 'mensaje' => $validated['mensaje'],
                 'prioridad' => 'media',
                 'fecha_envio' => $fechaEnvio,
                 'programado_para' => $validated['programado_para'] ? $fechaEnvio : null,
             ]);
+        } else {
+            // Opcional: ¿Qué hacer si el caso no tiene un usuario asignado?
+            // Podríamos notificar solo a los admins aquí, o simplemente no hacer nada.
+            // Por ahora, lo dejamos así para evitar duplicados. Si necesitas
+            // que los admins sean notificados en este caso, podemos ajustarlo.
         }
+        
         return back()->with('success', 'Alerta manual programada exitosamente.');
     }
 }

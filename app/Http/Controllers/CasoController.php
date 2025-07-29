@@ -135,18 +135,18 @@ class CasoController extends Controller
 
         // Cargamos todas las relaciones que tus componentes necesitan de forma eficiente
         $caso->load([
-            'deudor', 'cooperativa', 'user', 
+            'deudor', 
+            'cooperativa', 
+            'user', 
             'documentos', 
-            'bitacoras.user', // Para la Bitácora de Actividad y el Rastro de Auditoría
+            'bitacoras.user', 
             'documentosGenerados.usuario',
-            'pagos', 
-            'validacionesLegales.requisito', // Para el Cumplimiento Legal
+            'pagos.usuario', // <--- ¡AQUÍ ESTÁ LA CORRECCIÓN!
+            'validacionesLegales.requisito',
         ]);
         
         // Hacemos que la relación 'auditoria' use los datos de 'bitacoras' para consistencia
         $caso->setRelation('auditoria', $caso->bitacoras);
-
-        
 
         $plantillasDisponibles = PlantillaDocumento::where('activa', true)
             ->where(function ($query) use ($caso) {
@@ -163,7 +163,6 @@ class CasoController extends Controller
                 'delete' => Auth::user()->can('delete', $caso),
             ]
         ]);
-
     }
 
     public function edit(Caso $caso): Response
