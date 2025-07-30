@@ -99,7 +99,7 @@ Route::get('/probar-integracion-supersolidaria', function (IntegrationService $i
 Route::middleware(['auth', 'verified'])->group(function () {
 
     // --- RUTA DEL DASHBOARD ---
-    Route::get('/dashboard', AnaliticaController::class)->name('dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // --- RUTAS GENERALES DEL USUARIO (PERFIL Y NOTIFICACIONES) ---
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
