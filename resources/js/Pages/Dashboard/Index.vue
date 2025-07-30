@@ -128,7 +128,7 @@ const chartOptions = {
                     <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md">
                         <div class="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-4">
                             <div>
-                                <h1 class="text-3xl font-bold text-gray-800 dark:text-white">Hola de nuevo, {{ user.name }} 👋</h1>
+                                <h1 class="text-3xl font-bold text-gray-800 dark:text-white">Hola de nuevo, {{ user.name }}</h1>
                                 <p class="text-gray-500 dark:text-gray-400 mt-1">Aquí tienes un resumen del estado actual de la cartera.</p>
                             </div>
                             <div class="flex-shrink-0">
