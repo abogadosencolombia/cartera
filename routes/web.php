@@ -36,6 +36,8 @@ use App\Services\IntegrationService;
 use App\Http\Controllers\DocumentoLegalController;
 use App\Http\Controllers\Admin\IntegracionTokenController;
 
+use App\Http\Controllers\ContactoClienteController;
+
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -97,6 +99,8 @@ Route::get('/probar-integracion-supersolidaria', function (IntegrationService $i
 // =================================================================
 
 Route::middleware(['auth', 'verified'])->group(function () {
+
+    Route::post('/contacto-cliente', [ContactoClienteController::class, 'enviar'])->name('contacto.cliente.enviar');
 
     // --- RUTA DEL DASHBOARD ---
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
