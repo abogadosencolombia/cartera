@@ -35,7 +35,6 @@
                 </tr>
                 <tr>
                     <td class="label">Identificación:</td>
-                    <!-- CORRECCIÓN DE NOMBRES DE VARIABLES -->
                     <td>{{ $datos['deudor_tipo_documento'] }} {{ $datos['deudor_numero_documento'] }}</td>
                 </tr>
                  <tr>
@@ -54,14 +53,13 @@
                 </tr>
                 <tr>
                     <td class="label">NIT:</td>
-                    <!-- CORRECCIÓN DE NOMBRE DE VARIABLE -->
                     <td>{{ $datos['cooperativa_nit'] }}</td>
                 </tr>
             </table>
         </div>
 
         <div class="section">
-            <p><strong>REFERENCIA:</strong> Requerimiento de pago para la obligación con un saldo actual de <strong>${{ $datos['caso_monto_total'] }}</strong></p>
+            <p><strong>REFERENCIA:</strong> Requerimiento de pago para la obligación con un saldo actual de <strong>$ {{ $datos['caso_monto_total'] }}</strong></p>
         </div>
         
         <hr>
