@@ -7,6 +7,7 @@ use App\Models\Cooperativa;
 use App\Models\IncidenteJuridico;
 use App\Models\User;
 use App\Models\ValidacionLegal;
+use App\Models\PagoCaso; // Importante tener el modelo de Pagos
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -20,19 +21,24 @@ class DashboardController extends Controller
     {
         $user = Auth::user();
         
-        // --- VISTA EXCLUSIVA PARA EL ROL DE CLIENTE ---
         if ($user->tipo_usuario === 'cliente' && $user->persona_id) {
             
             $casosClienteQuery = Caso::query()
+                ->whereIn('estado_proceso', ['prejuridico', 'demandado'])
                 ->where(function($q) use ($user) {
                     $q->where('deudor_id', $user->persona_id)
                       ->orWhere('codeudor1_id', $user->persona_id)
                       ->orWhere('codeudor2_id', $user->persona_id);
                 });
 
+            $casosActivosIds = (clone $casosClienteQuery)->pluck('id');
+            $montoTotalDeuda = (clone $casosClienteQuery)->sum('monto_total');
+            $totalPagado = PagoCaso::whereIn('caso_id', $casosActivosIds)->sum('monto_pagado');
+            $saldoPendienteReal = $montoTotalDeuda - $totalPagado;
+
             $kpisCliente = [
-                'saldo_total_pendiente' => (clone $casosClienteQuery)->whereIn('estado_proceso', ['prejuridico', 'demandado'])->sum('monto_total') ?? 0,
-                'casos_activos' => (clone $casosClienteQuery)->whereIn('estado_proceso', ['prejuridico', 'demandado'])->count(),
+                'saldo_total_pendiente' => $saldoPendienteReal,
+                'casos_activos' => $casosActivosIds->count(),
             ];
 
             return Inertia::render('Dashboard/Index', [
@@ -41,17 +47,31 @@ class DashboardController extends Controller
             ]);
         }
 
-        // --- VISTA PARA ADMIN, GESTOR, ABOGADO ---
+        // --- LÓGICA PARA ADMIN, GESTOR, ABOGADO (VERSIÓN CORREGIDA) ---
+        
         $baseQuery = Caso::query();
 
         $baseQuery->when($request->filled('cooperativa_id'), fn($q) => $q->where('cooperativa_id', $request->input('cooperativa_id')));
         $baseQuery->when($request->filled('fecha_desde'), fn($q) => $q->whereDate('fecha_apertura', '>=', $request->input('fecha_desde')));
         $baseQuery->when($request->filled('fecha_hasta'), fn($q) => $q->whereDate('fecha_apertura', '<=', $request->input('fecha_hasta')));
         
+        // 1. Obtenemos los casos activos según los filtros
+        $casosActivosQuery = (clone $baseQuery)->whereIn('estado_proceso', ['prejuridico', 'demandado']);
+        $casosActivosIds = (clone $casosActivosQuery)->pluck('id');
+
+        // 2. Calculamos la suma de las deudas de esos casos
+        $montoTotalDeudasActivas = (clone $casosActivosQuery)->sum('monto_total');
+        
+        // 3. Calculamos la suma de los pagos para esos casos
+        $totalPagadoActivo = PagoCaso::whereIn('caso_id', $casosActivosIds)->sum('monto_pagado');
+
+        // 4. Calculamos el saldo pendiente real
+        $saldoPendienteActivo = $montoTotalDeudasActivas - $totalPagadoActivo;
+
         $kpis = [
-            'casos_activos' => (clone $baseQuery)->whereIn('estado_proceso', ['prejuridico', 'demandado'])->count(),
+            'casos_activos' => $casosActivosIds->count(),
             'casos_demandados' => (clone $baseQuery)->where('estado_proceso', 'demandado')->count(),
-            'mora_total' => (clone $baseQuery)->whereIn('estado_proceso', ['prejuridico', 'demandado'])->sum('monto_total') ?? 0,
+            'mora_total' => $saldoPendienteActivo, // <-- ¡CORRECCIÓN APLICADA!
             'cumplimiento_legal' => $this->calcularCumplimiento($baseQuery),
         ];
 
