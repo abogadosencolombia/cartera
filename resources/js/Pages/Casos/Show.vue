@@ -31,7 +31,8 @@ import {
     BuildingOffice2Icon,
     ScaleIcon,
     CalendarDaysIcon,
-    TrashIcon
+    TrashIcon,
+    CameraIcon 
 } from '@heroicons/vue/24/outline';
 
 const props = defineProps({
@@ -43,7 +44,7 @@ const props = defineProps({
 const activeTab = ref('resumen');
 const page = usePage();
 
-// --- Lógica de Modales (SIN CAMBIOS) ---
+// --- Lógica de Modales ---
 const confirmingDocumentUpload = ref(false);
 const docForm = useForm({ tipo_documento: 'pagaré', fecha_carga: new Date().toISOString().slice(0, 10), archivo: null });
 const openUploadModal = () => { confirmingDocumentUpload.value = true; };
@@ -63,8 +64,19 @@ const cerrarModalGenerar = () => { mostrandoModalGenerar.value = false; };
 const submitGenerarDocumento = () => { generarDocForm.post(route('documentos.generar'), { preserveScroll: true, onSuccess: () => cerrarModalGenerar() }); };
 
 const mostrandoModalPago = ref(false);
-const pagoForm = useForm({ monto_pagado: '', fecha_pago: new Date().toISOString().slice(0, 10), motivo_pago: 'parcial' });
-const abrirModalPago = () => { pagoForm.reset({ fecha_pago: new Date().toISOString().slice(0, 10), motivo_pago: 'parcial' }); mostrandoModalPago.value = true; };
+const pagoForm = useForm({ 
+    monto_pagado: '', 
+    fecha_pago: new Date().toISOString().slice(0, 10), 
+    motivo_pago: 'parcial',
+    comprobante_pago: null
+});
+const abrirModalPago = () => { 
+    pagoForm.reset({ 
+        fecha_pago: new Date().toISOString().slice(0, 10), 
+        motivo_pago: 'parcial' 
+    }); 
+    mostrandoModalPago.value = true; 
+};
 const cerrarModalPago = () => { mostrandoModalPago.value = false; };
 const submitPago = () => { pagoForm.post(route('casos.pagos.store', props.caso.id), { preserveScroll: true, onSuccess: () => cerrarModalPago() }); };
 
@@ -74,7 +86,7 @@ const abrirModalAlerta = () => { alertaForm.reset(); mostrandoModalAlerta.value 
 const cerrarModalAlerta = () => { mostrandoModalAlerta.value = false; };
 const submitAlerta = () => { alertaForm.post(route('casos.notificaciones.store', props.caso.id), { preserveScroll: true, onSuccess: () => cerrarModalAlerta() }); };
 
-// --- Funciones de formato (SIN CAMBIOS) ---
+// --- Funciones de formato ---
 const formatDate = (dateString) => {
     if (!dateString) return 'No especificada';
     const date = new Date(dateString);
@@ -99,7 +111,7 @@ const statusColorClasses = {
     gray: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
 };
 
-// ===== NUEVAS PROPIEDADES COMPUTADAS =====
+// --- Propiedades Computadas ---
 const totalPagado = computed(() => {
     return props.caso.pagos?.reduce((sum, pago) => sum + parseFloat(pago.monto_pagado), 0) || 0;
 });
@@ -195,10 +207,13 @@ const saldoPendiente = computed(() => {
                                     <h3 class="text-lg font-bold mb-4 flex items-center"><ScaleIcon class="h-6 w-6 mr-2 text-gray-500"/>Detalles del Proceso</h3>
                                     <dl class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                                         <div><p class="text-sm text-gray-500">Referencia del Crédito</p><p class="font-semibold">{{ caso.referencia_credito || 'N/A' }}</p></div>
-                                        <div><p class="text-sm text-gray-500">Tipo de Proceso</p><p class="font-semibold">{{ caso.tipo_proceso }}</p></div>
+                                        <div><p class="text-sm text-gray-500">Tipo de Proceso</p><p class="font-semibold capitalize">{{ caso.tipo_proceso }}</p></div>
+                                        <div><p class="text-sm text-gray-500">Subtipo de Proceso</p><p class="font-semibold">{{ caso.subtipo_proceso || 'No especificado' }}</p></div>
+                                        <div><p class="text-sm text-gray-500">Etapa Procesal</p><p class="font-semibold">{{ caso.etapa_procesal || 'No especificada' }}</p></div>
+                                        <div class="md:col-span-2"><p class="text-sm text-gray-500">Juzgado</p><p class="font-semibold">{{ caso.juzgado ? caso.juzgado.nombre : 'No especificado' }}</p></div>
                                         <div><p class="text-sm text-gray-500">Fecha de Apertura</p><p class="font-semibold">{{ formatDate(caso.fecha_apertura) }}</p></div>
                                         <div><p class="text-sm text-gray-500">Fecha de Vencimiento</p><p class="font-semibold">{{ formatDate(caso.fecha_vencimiento) }}</p></div>
-                                        <div class="md:col-span-2"><p class="text-sm text-gray-500">Tipo de Garantía</p><p class="font-semibold">{{ caso.tipo_garantia_asociada }}</p></div>
+                                        <div class="md:col-span-2"><p class="text-sm text-gray-500">Tipo de Garantía</p><p class="font-semibold capitalize">{{ caso.tipo_garantia_asociada }}</p></div>
                                     </dl>
                                 </div>
                                 <div class="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-lg">
@@ -228,18 +243,18 @@ const saldoPendiente = computed(() => {
                                 <div v-if="!caso.documentos_generados || caso.documentos_generados.length === 0" class="text-center py-6 text-gray-500 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">No hay documentos generados.</div>
                                 <ul v-else class="space-y-2">
                                    <li v-for="doc in caso.documentos_generados" :key="doc.id" class="p-3 bg-white dark:bg-gray-800 rounded-md shadow-sm flex items-center justify-between">
-                                       <div class="flex items-center truncate">
-                                           <LockClosedIcon v-if="doc.es_confidencial" class="h-5 w-5 text-yellow-500 mr-3 flex-shrink-0" title="Confidencial" />
-                                           <div class="truncate">
-                                               <p class="text-sm font-medium text-gray-900 dark:text-white truncate" :title="`${doc.nombre_base}.docx`">{{ doc.nombre_base }}.docx</p>
-                                               <p class="text-xs text-gray-500">Generado por {{ doc.usuario.name }} (v{{ doc.version_plantilla }})</p>
-                                           </div>
-                                       </div>
-                                       <div class="flex items-center space-x-2 flex-shrink-0 ml-4">
-                                           <a :href="route('documentos.descargar.docx', doc.id)" class="text-blue-600 hover:text-blue-800 p-1.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/50" title="Descargar .docx"><ArrowDownTrayIcon class="h-5 w-5"/></a>
-                                           <a :href="route('documentos.descargar.pdf', doc.id)" class="text-red-600 hover:text-red-800 p-1.5 rounded-full hover:bg-red-100 dark:hover:bg-red-900/50" title="Descargar .pdf"><ArrowDownTrayIcon class="h-5 w-5"/></a>
-                                       </div>
-                                   </li>
+                                        <div class="flex items-center truncate">
+                                            <LockClosedIcon v-if="doc.es_confidencial" class="h-5 w-5 text-yellow-500 mr-3 flex-shrink-0" title="Confidencial" />
+                                            <div class="truncate">
+                                                <p class="text-sm font-medium text-gray-900 dark:text-white truncate" :title="`${doc.nombre_base}.docx`">{{ doc.nombre_base }}.docx</p>
+                                                <p class="text-xs text-gray-500">Generado por {{ doc.usuario.name }} (v{{ doc.version_plantilla }})</p>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center space-x-2 flex-shrink-0 ml-4">
+                                            <a :href="route('documentos.descargar.docx', doc.id)" class="text-blue-600 hover:text-blue-800 p-1.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/50" title="Descargar .docx"><ArrowDownTrayIcon class="h-5 w-5"/></a>
+                                            <a :href="route('documentos.descargar.pdf', doc.id)" class="text-red-600 hover:text-red-800 p-1.5 rounded-full hover:bg-red-100 dark:hover:bg-red-900/50" title="Descargar .pdf"><ArrowDownTrayIcon class="h-5 w-5"/></a>
+                                        </div>
+                                    </li>
                                 </ul>
                             </div>
                             <div class="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-lg">
@@ -250,70 +265,80 @@ const saldoPendiente = computed(() => {
                                 <div v-if="!caso.documentos || caso.documentos.length === 0" class="text-center py-6 text-gray-500 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">No hay documentos adjuntos.</div>
                                 <ul v-else class="space-y-2">
                                    <li v-for="doc in caso.documentos" :key="doc.id" class="p-3 bg-white dark:bg-gray-800 rounded-md shadow-sm flex items-center justify-between">
-                                       <div>
-                                           <p class="text-sm font-medium text-gray-900 dark:text-white capitalize">{{ doc.tipo_documento }}</p>
-                                           <p class="text-xs text-gray-500">Subido el {{ formatDate(doc.fecha_carga) }}</p>
-                                       </div>
-                                       <div class="flex items-center space-x-2">
-                                           <a :href="route('documentos-caso.view', doc.id)" target="_blank" class="inline-flex items-center px-3 py-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md font-semibold text-xs text-gray-700 dark:text-gray-300 uppercase tracking-widest shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none disabled:opacity-25 transition ease-in-out duration-150">
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-900 dark:text-white capitalize">{{ doc.tipo_documento }}</p>
+                                            <p class="text-xs text-gray-500">Subido el {{ formatDate(doc.fecha_carga) }}</p>
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <a :href="route('documentos-caso.view', doc.id)" target="_blank" class="inline-flex items-center px-3 py-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md font-semibold text-xs text-gray-700 dark:text-gray-300 uppercase tracking-widest shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none disabled:opacity-25 transition ease-in-out duration-150">
                                                 Ver
                                             </a>
-                                           <DangerButton v-if="can.update" @click="confirmDocumentDeletion(doc)" class="!py-2 !text-xs"><TrashIcon class="h-4 w-4"/></DangerButton>
-                                       </div>
-                                   </li>
+                                            <DangerButton v-if="can.update" @click="confirmDocumentDeletion(doc)" class="!py-2 !text-xs"><TrashIcon class="h-4 w-4"/></DangerButton>
+                                        </div>
+                                    </li>
                                 </ul>
                             </div>
                         </div>
-                    </div>
-                
-                    <div v-show="activeTab === 'financiero'" class="space-y-6">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg text-center"><p class="text-sm text-gray-500">Monto Total</p><p class="text-2xl font-bold">{{formatCurrency(caso.monto_total)}}</p></div>
-                            <div class="bg-green-50 dark:bg-green-900/50 p-4 rounded-lg text-center"><p class="text-sm text-green-700 dark:text-green-300">Total Pagado</p><p class="text-2xl font-bold text-green-800 dark:text-green-200">{{formatCurrency(totalPagado)}}</p></div>
-                            <div class="bg-yellow-50 dark:bg-yellow-900/50 p-4 rounded-lg text-center"><p class="text-sm text-yellow-700 dark:text-yellow-300">Saldo Pendiente</p><p class="text-2xl font-bold text-yellow-800 dark:text-yellow-200">{{formatCurrency(saldoPendiente)}}</p></div>
-                        </div>
-                        <div class="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-lg">
-                            <div class="flex justify-between items-center mb-4">
-                                <h3 class="text-lg font-bold flex items-center"><BanknotesIcon class="h-6 w-6 mr-2 text-green-500"/>Historial de Pagos</h3>
-                                <PrimaryButton v-if="can.update" @click="abrirModalPago">Registrar Pago +</PrimaryButton>
+                        
+                        <div v-show="activeTab === 'financiero'" class="space-y-6">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg text-center"><p class="text-sm text-gray-500">Monto Total</p><p class="text-2xl font-bold">{{formatCurrency(caso.monto_total)}}</p></div>
+                                <div class="bg-green-50 dark:bg-green-900/50 p-4 rounded-lg text-center"><p class="text-sm text-green-700 dark:text-green-300">Total Pagado</p><p class="text-2xl font-bold text-green-800 dark:text-green-200">{{formatCurrency(totalPagado)}}</p></div>
+                                <div class="bg-yellow-50 dark:bg-yellow-900/50 p-4 rounded-lg text-center"><p class="text-sm text-yellow-700 dark:text-yellow-300">Saldo Pendiente</p><p class="text-2xl font-bold text-yellow-800 dark:text-yellow-200">{{formatCurrency(saldoPendiente)}}</p></div>
                             </div>
-                            <div v-if="!caso.pagos || caso.pagos.length === 0" class="text-center py-6 text-gray-500 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">No hay pagos registrados para este caso.</div>
-                            <ul v-else class="divide-y divide-gray-200 dark:divide-gray-700">
-                                <li v-for="pago in caso.pagos" :key="pago.id" class="py-3 flex items-center justify-between">
-                                    <div>
-                                        <p class="text-sm font-medium text-green-600 dark:text-green-400">{{ formatCurrency(pago.monto_pagado) }}</p>
-                                        <p class="text-xs text-gray-500 capitalize">Registrado el {{ formatDate(pago.fecha_pago) }} ({{ pago.motivo_pago }})</p>
-                                    </div>
-                                    <div class="text-xs text-gray-500">Por: {{ pago.usuario ? pago.usuario.name : 'N/A' }}</div>
-                                </li>
-                            </ul>
+                            <div class="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-lg">
+                                <div class="flex justify-between items-center mb-4">
+                                    <h3 class="text-lg font-bold flex items-center"><BanknotesIcon class="h-6 w-6 mr-2 text-green-500"/>Historial de Pagos</h3>
+                                    <PrimaryButton v-if="can.update" @click="abrirModalPago">Registrar Pago +</PrimaryButton>
+                                </div>
+                                <div v-if="!caso.pagos || caso.pagos.length === 0" class="text-center py-6 text-gray-500 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">No hay pagos registrados para este caso.</div>
+                                <!-- === CAMBIO 1: LISTA DE PAGOS ACTUALIZADA === -->
+                                <ul v-else class="divide-y divide-gray-200 dark:divide-gray-700">
+                                    <li v-for="pago in caso.pagos" :key="pago.id" class="py-3 flex flex-wrap items-center justify-between gap-2">
+                                        <div class="flex-grow">
+                                            <p class="text-sm font-medium text-green-600 dark:text-green-400">{{ formatCurrency(pago.monto_pagado) }}</p>
+                                            <p class="text-xs text-gray-500 capitalize">Registrado el {{ formatDate(pago.fecha_pago) }} ({{ pago.motivo_pago }})</p>
+                                            <p class="text-xs text-gray-500">Por: {{ pago.usuario ? pago.usuario.name : 'N/A' }}</p>
+                                        </div>
+                                        <!-- === CAMBIO 2: BOTÓN PARA VER COMPROBANTE === -->
+                                        <!-- Este botón solo aparece si el backend envía la URL del comprobante -->
+                                        <a v-if="pago.comprobante_url" 
+                                           :href="pago.comprobante_url" 
+                                           target="_blank" 
+                                           class="inline-flex items-center px-3 py-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md font-semibold text-xs text-gray-700 dark:text-gray-300 uppercase tracking-widest shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none disabled:opacity-25 transition ease-in-out duration-150">
+                                            Ver Comprobante
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
                         </div>
-                    </div>
-                    
-                    <div v-show="activeTab === 'actividad'" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div class="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-lg">
-                             <h3 class="text-lg font-bold mb-4 flex items-center"><ClockIcon class="h-6 w-6 mr-2 text-gray-500" />Bitácora de Actividad</h3>
-                             <div class="relative border-l-2 border-gray-200 dark:border-gray-700 ml-3 max-h-96 overflow-y-auto pr-2">
-                                 <div v-if="!caso.bitacoras || caso.bitacoras.length === 0" class="pl-8 pb-4"><p class="text-sm text-gray-500">No hay actividades.</p></div>
-                                 <ol v-else class="space-y-6">
-                                     <li v-for="item in caso.bitacoras" :key="item.id" class="relative pl-8">
-                                         <div class="absolute -left-[7px] top-1 h-3 w-3 rounded-full bg-indigo-500 ring-4 ring-gray-50 dark:ring-gray-900/50"></div>
-                                         <p class="text-sm font-semibold text-gray-800 dark:text-gray-200">{{ item.accion }}</p>
-                                         <p v-if="item.comentario" class="text-sm text-gray-600 dark:text-gray-400 mt-1">{{ item.comentario }}</p>
-                                         <p class="text-xs text-gray-400 dark:text-gray-500 mt-1.5">Por <span class="font-medium">{{ item.user ? item.user.name : 'N/A' }}</span></p>
-                                         <p class="text-xs text-gray-400 dark:text-gray-500">{{ formatDateTime(item.created_at) }}</p>
-                                     </li>
-                                 </ol>
-                             </div>
-                        </div>
-                        <div class="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-lg">
-                            <HistorialAuditoria :eventos="caso.auditoria" />
+                        
+                        <div v-show="activeTab === 'actividad'" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div class="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-lg">
+                                 <h3 class="text-lg font-bold mb-4 flex items-center"><ClockIcon class="h-6 w-6 mr-2 text-gray-500" />Bitácora de Actividad</h3>
+                                 <div class="relative border-l-2 border-gray-200 dark:border-gray-700 ml-3 max-h-96 overflow-y-auto pr-2">
+                                     <div v-if="!caso.bitacoras || caso.bitacoras.length === 0" class="pl-8 pb-4"><p class="text-sm text-gray-500">No hay actividades.</p></div>
+                                     <ol v-else class="space-y-6">
+                                         <li v-for="item in caso.bitacoras" :key="item.id" class="relative pl-8">
+                                             <div class="absolute -left-[7px] top-1 h-3 w-3 rounded-full bg-indigo-500 ring-4 ring-gray-50 dark:ring-gray-900/50"></div>
+                                             <p class="text-sm font-semibold text-gray-800 dark:text-gray-200">{{ item.accion }}</p>
+                                             <p v-if="item.comentario" class="text-sm text-gray-600 dark:text-gray-400 mt-1">{{ item.comentario }}</p>
+                                             <p class="text-xs text-gray-400 dark:text-gray-500 mt-1.5">Por <span class="font-medium">{{ item.user ? item.user.name : 'N/A' }}</span></p>
+                                             <p class="text-xs text-gray-400 dark:text-gray-500">{{ formatDateTime(item.created_at) }}</p>
+                                         </li>
+                                     </ol>
+                                 </div>
+                            </div>
+                            <div class="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-lg">
+                                <HistorialAuditoria :eventos="caso.auditoria" />
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
+        <!-- === MODALES === -->
         <Modal :show="confirmingDocumentUpload" @close="closeUploadModal">
             <div class="p-6"><h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">Subir Nuevo Documento de Prueba</h2><form @submit.prevent="submitDocument" class="mt-6 space-y-6"><div><InputLabel for="tipo_documento_upload" value="Tipo de Documento" /><select v-model="docForm.tipo_documento" id="tipo_documento_upload" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 rounded-md shadow-sm"><option>pagaré</option><option>carta instrucciones</option><option>certificación saldo</option><option>libranza</option><option>cédula deudor</option><option>cédula codeudor</option><option>otros</option></select><InputError :message="docForm.errors.tipo_documento" class="mt-2" /></div><div><InputLabel for="fecha_carga" value="Fecha de Carga" /><TextInput v-model="docForm.fecha_carga" id="fecha_carga" type="date" class="mt-1 block w-full" required /><InputError :message="docForm.errors.fecha_carga" class="mt-2" /></div><div><InputLabel for="archivo_upload" value="Archivo (Máx 5MB)" /><input id="archivo_upload" type="file" @input="docForm.archivo = $event.target.files[0]" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"/><InputError :message="docForm.errors.archivo" class="mt-2" /></div><div class="mt-6 flex justify-end"><SecondaryButton @click="closeUploadModal"> Cancelar </SecondaryButton><PrimaryButton class="ms-3" :class="{ 'opacity-25': docForm.processing }" :disabled="docForm.processing">Guardar Documento</PrimaryButton></div></form></div>
         </Modal>
@@ -323,11 +348,72 @@ const saldoPendiente = computed(() => {
         <Modal :show="mostrandoModalGenerar" @close="cerrarModalGenerar">
             <div class="p-6"><h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">Generar Documento desde Plantilla</h2><form @submit.prevent="submitGenerarDocumento" class="mt-6 space-y-6"><div><InputLabel for="plantilla_id_generate" value="Plantilla a utilizar" /><SelectInput id="plantilla_id_generate" class="mt-1 block w-full" v-model="generarDocForm.plantilla_id" required><option disabled :value="null">-- Seleccione una plantilla --</option><option v-for="plantilla in plantillas" :key="plantilla.id" :value="plantilla.id">{{ plantilla.nombre }} (v{{ plantilla.version }})</option></SelectInput><InputError class="mt-2" :message="generarDocForm.errors.plantilla_id" /></div><div><InputLabel for="observaciones_generate" value="Observaciones (Opcional)" /><Textarea id="observaciones_generate" class="mt-1 block w-full" v-model="generarDocForm.observaciones" rows="3" /><InputError class="mt-2" :message="generarDocForm.errors.observaciones" /></div><div class="flex items-start"><div class="flex items-center h-5"><Checkbox id="es_confidencial_generate" v-model:checked="generarDocForm.es_confidencial" /></div><div class="ml-3 text-sm"><InputLabel for="es_confidencial_generate" value="Documento Confidencial" /><p class="text-xs text-gray-500 dark:text-gray-400">Si se marca, no será visible para usuarios con rol de cliente.</p></div></div><div class="mt-6 flex justify-end"><SecondaryButton @click="cerrarModalGenerar"> Cancelar </SecondaryButton><PrimaryButton class="ms-3" :class="{ 'opacity-25': generarDocForm.processing }" :disabled="generarDocForm.processing">Generar Documento</PrimaryButton></div></form></div>
         </Modal>
+        
         <Modal :show="mostrandoModalPago" @close="cerrarModalPago">
-            <div class="p-6"><h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">Registrar Nuevo Pago</h2><form @submit.prevent="submitPago" class="mt-6 space-y-6"><div><InputLabel for="monto_pagado" value="Monto Pagado" /><TextInput v-model="pagoForm.monto_pagado" id="monto_pagado" type="number" step="0.01" class="mt-1 block w-full" required /><InputError :message="pagoForm.errors.monto_pagado" class="mt-2" /></div><div><InputLabel for="fecha_pago" value="Fecha del Pago" /><TextInput v-model="pagoForm.fecha_pago" id="fecha_pago" type="date" class="mt-1 block w-full" required /><InputError :message="pagoForm.errors.fecha_pago" class="mt-2" /></div><div><InputLabel for="motivo_pago" value="Motivo del Pago" /><SelectInput v-model="pagoForm.motivo_pago" id="motivo_pago" class="mt-1 block w-full" required><option value="parcial">Pago Parcial</option><option value="acuerdo">Pago por Acuerdo</option><option value="sentencia">Pago por Sentencia</option><option value="total">Pago Total (Cierre de Caso)</option></SelectInput><InputError :message="pagoForm.errors.motivo_pago" class="mt-2" /></div><div class="mt-6 flex justify-end"><SecondaryButton @click="cerrarModalPago">Cancelar</SecondaryButton><PrimaryButton class="ms-3" :class="{ 'opacity-25': pagoForm.processing }" :disabled="pagoForm.processing">Registrar Pago</PrimaryButton></div></form></div>
+            <div class="p-6">
+                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">Registrar Nuevo Pago</h2>
+                <form @submit.prevent="submitPago" class="mt-6 space-y-6">
+                    <div>
+                        <InputLabel for="monto_pagado" value="Monto Pagado *" />
+                        <TextInput v-model="pagoForm.monto_pagado" id="monto_pagado" type="number" step="0.01" class="mt-1 block w-full" required />
+                        <InputError :message="pagoForm.errors.monto_pagado" class="mt-2" />
+                    </div>
+                    <div>
+                        <InputLabel for="fecha_pago" value="Fecha del Pago *" />
+                        <TextInput v-model="pagoForm.fecha_pago" id="fecha_pago" type="date" class="mt-1 block w-full" required />
+                        <InputError :message="pagoForm.errors.fecha_pago" class="mt-2" />
+                    </div>
+                    <div>
+                        <InputLabel for="motivo_pago" value="Motivo del Pago *" />
+                        <SelectInput v-model="pagoForm.motivo_pago" id="motivo_pago" class="mt-1 block w-full" required>
+                            <option value="parcial">Pago Parcial</option>
+                            <option value="acuerdo">Pago por Acuerdo</option>
+                            <option value="sentencia">Pago por Sentencia</option>
+                            <option value="total">Pago Total (Cierre de Caso)</option>
+                        </SelectInput>
+                        <InputError :message="pagoForm.errors.motivo_pago" class="mt-2" />
+                    </div>
+                    
+                    <div>
+                        <InputLabel for="comprobante_pago" value="Comprobante de Pago *" />
+                        <div class="mt-1 flex items-center justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-md">
+                            <div class="space-y-1 text-center">
+                                <CameraIcon class="mx-auto h-12 w-12 text-gray-400"/>
+                                <div class="flex text-sm text-gray-600 dark:text-gray-400">
+                                    <label for="comprobante_pago_file" class="relative cursor-pointer bg-white dark:bg-gray-800 rounded-md font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
+                                        <span>Sube un archivo</span>
+                                        <input 
+                                            id="comprobante_pago_file" 
+                                            name="comprobante_pago" 
+                                            type="file" 
+                                            class="sr-only"
+                                            accept="image/*"
+                                            capture="environment"
+                                            @input="pagoForm.comprobante_pago = $event.target.files[0]"
+                                            required
+                                        >
+                                    </label>
+                                    <p class="pl-1">o arrastra y suelta</p>
+                                </div>
+                                <p class="text-xs text-gray-500 dark:text-gray-500">PNG, JPG, GIF hasta 5MB</p>
+                                <p v-if="pagoForm.comprobante_pago" class="text-sm font-medium text-green-600 pt-2">
+                                    Archivo seleccionado: {{ pagoForm.comprobante_pago.name }}
+                                </p>
+                            </div>
+                        </div>
+                        <InputError :message="pagoForm.errors.comprobante_pago" class="mt-2" />
+                    </div>
+
+                    <div class="mt-6 flex justify-end">
+                        <SecondaryButton @click="cerrarModalPago">Cancelar</SecondaryButton>
+                        <PrimaryButton class="ms-3" :class="{ 'opacity-25': pagoForm.processing }" :disabled="pagoForm.processing">Registrar Pago</PrimaryButton>
+                    </div>
+                </form>
+            </div>
         </Modal>
+
         <Modal :show="mostrandoModalAlerta" @close="cerrarModalAlerta">
-            <div class="p-6"><h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">Programar Alerta Manual</h2><p class="mt-1 text-sm text-gray-600 dark:text-gray-400">Cree un recordatorio para usted mismo sobre este caso. La alerta aparecerá en su bandeja de notificaciones.</p><form @submit.prevent="submitAlerta" class="mt-6 space-y-6"><div><InputLabel for="mensaje_alerta" value="Mensaje del Recordatorio" /><Textarea v-model="alertaForm.mensaje" id="mensaje_alerta" class="mt-1 block w-full" required rows="4" /><InputError :message="alertaForm.errors.mensaje" class="mt-2" /></div><div><InputLabel for="programado_para" value="Fecha de la Alerta (Opcional)" /><TextInput v-model="alertaForm.programado_para" id="programado_para" type="date" class="mt-1 block w-full" /><p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Si no selecciona fecha, la alerta se creará inmediatamente.</p><InputError :message="alertaForm.errors.programado_para" class="mt-2" /></div><div class="mt-6 flex justify-end"><SecondaryButton @click="cerrarModalAlerta">Cancelar</secondaryButton><PrimaryButton class="ms-3" :class="{ 'opacity-25': alertaForm.processing }" :disabled="alertaForm.processing">Programar Alerta</PrimaryButton></div></form></div>
+            <div class="p-6"><h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">Programar Alerta Manual</h2><p class="mt-1 text-sm text-gray-600 dark:text-gray-400">Cree un recordatorio para usted mismo sobre este caso. La alerta aparecerá en su bandeja de notificaciones.</p><form @submit.prevent="submitAlerta" class="mt-6 space-y-6"><div><InputLabel for="mensaje_alerta" value="Mensaje del Recordatorio" /><Textarea v-model="alertaForm.mensaje" id="mensaje_alerta" class="mt-1 block w-full" required rows="4" /><InputError :message="alertaForm.errors.mensaje" class="mt-2" /></div><div><InputLabel for="programado_para" value="Fecha de la Alerta (Opcional)" /><TextInput v-model="alertaForm.programado_para" id="programado_para" type="date" class="mt-1 block w-full" /><p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Si no selecciona fecha, la alerta se creará inmediatamente.</p><InputError :message="alertaForm.errors.programado_para" class="mt-2" /></div><div class="mt-6 flex justify-end"><SecondaryButton @click="cerrarModalAlerta">Cancelar</SecondaryButton><PrimaryButton class="ms-3" :class="{ 'opacity-25': alertaForm.processing }" :disabled="alertaForm.processing">Programar Alerta</PrimaryButton></div></form></div>
         </Modal>
 
     </AuthenticatedLayout>

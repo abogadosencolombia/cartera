@@ -154,7 +154,7 @@ const submit = () => {
                                         <InputError :message="form.errors.tipo_garantia_frecuente" class="mt-2" />
                                     </div>
                                     <div>
-                                        <InputLabel for="tasa_maxima_moratoria" value="Tasa Máxima Moratoria (%)" />
+                                        <InputLabel for="tasa_maxima_moratoria" value="Tasa de Usura (%)" />
                                         <TextInput v-model="form.tasa_maxima_moratoria" id="tasa_maxima_moratoria" type="text" class="mt-1 block w-full" required />
                                         <InputError :message="form.errors.tasa_maxima_moratoria" class="mt-2" />
                                     </div>

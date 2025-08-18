@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use App\Models\AuditoriaEvento;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Caso extends Model
 {
@@ -22,6 +23,10 @@ class Caso extends Model
         'tasa_moratoria', 'origen_documental', 'bloqueado', 'motivo_bloqueo',
         'etapa_actual', 'medio_contacto', 'ultima_actividad', 'notas_legales',
         'clonado_de_id',
+        // --- CAMPOS NUEVOS AÑADIDOS ---
+        'subtipo_proceso',
+        'etapa_procesal',
+        'juzgado_id',
     ];
 
     protected $casts = [
@@ -36,9 +41,6 @@ class Caso extends Model
 
     protected $appends = ['semaforo', 'dias_en_mora'];
 
-    /**
-     * ATRIBUTO CALCULADO: Días en Mora (Lógica Mejorada)
-     */
     protected function diasEnMora(): Attribute
     {
         return Attribute::make(
@@ -58,9 +60,6 @@ class Caso extends Model
         );
     }
 
-    /**
-     * SEMÁFORO MEJORADO: Lógica más clara y robusta.
-     */
     protected function semaforo(): Attribute
     {
         return Attribute::make(
@@ -94,7 +93,7 @@ class Caso extends Model
         );
     }
 
-    // --- RELACIONES EXISTENTES ---
+    // --- RELACIONES ---
     public function cooperativa(): BelongsTo { return $this->belongsTo(Cooperativa::class); }
     public function user(): BelongsTo { return $this->belongsTo(User::class); }
     public function deudor(): BelongsTo { return $this->belongsTo(Persona::class, 'deudor_id'); }
@@ -106,32 +105,21 @@ class Caso extends Model
     public function alertas(): HasMany { return $this->hasMany(AlertaCaso::class); }
     public function historialMora(): HasMany { return $this->hasMany(HistorialMora::class); }
     public function documentosGenerados(): HasMany { return $this->hasMany(DocumentoGenerado::class)->orderBy('created_at', 'desc'); }
+    public function notificaciones(): HasMany { return $this->hasMany(NotificacionCaso::class); }
+    public function validacionesLegales(): HasMany { return $this->hasMany(ValidacionLegal::class); }
+    public function configuracionLegal(): HasOne { return $this->hasOne(ConfiguracionLegal::class); }
 
-    /**
-     * --- RELACIÓN AÑADIDA PARA EL MÓDULO 6 ---
-     * Un caso puede tener muchas notificaciones.
-     */
-    public function notificaciones(): HasMany
-    {
-        return $this->hasMany(NotificacionCaso::class);
-    }
-
-    public function validacionesLegales(): HasMany
-    {
-        return $this->hasMany(ValidacionLegal::class);
-    }
-
-    public function configuracionLegal(): HasOne
-    {
-        return $this->hasOne(ConfiguracionLegal::class);
-    }
-
-    /**
-     * Obtiene todos los eventos de auditoría asociados con este caso.
-     */
     public function auditoria(): MorphMany
-        {
-    // Usamos 'auditable' porque así lo nombramos en la migración con morphs()
+    {
         return $this->morphMany(AuditoriaEvento::class, 'auditable')->latest();
+    }
+
+    /**
+     * Relación con el juzgado.
+     * Siguiendo la convención de Laravel, la nombramos 'juzgado' para que coincida con 'juzgado_id'.
+     */
+    public function juzgado(): BelongsTo 
+    { 
+        return $this->belongsTo(Juzgado::class, 'juzgado_id'); 
     }
 }

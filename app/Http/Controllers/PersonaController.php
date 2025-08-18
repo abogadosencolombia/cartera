@@ -18,8 +18,21 @@ class PersonaController extends Controller
     public function index(): Response
     {
         $this->authorize('viewAny', Persona::class);
+
+        // ===== CAMBIO IMPORTANTE =====
+        // En lugar de Persona::all(), seleccionamos solo las columnas que necesitamos.
+        // Esto es más eficiente y nos aseguramos de traer los datos de contacto.
+        $personas = Persona::select(
+            'id', 
+            'nombre_completo', 
+            'tipo_documento', 
+            'numero_documento',
+            'celular_1', // <-- Dato necesario para WhatsApp
+            'correo_1'   // <-- Dato necesario para Email
+        )->get();
+
         return Inertia::render('Personas/Index', [
-            'personas' => Persona::all(),
+            'personas' => $personas,
             'can' => [
                 'delete_personas' => Auth::user()->can('delete', Persona::class)
             ]
@@ -41,8 +54,6 @@ class PersonaController extends Controller
 
     public function show(Persona $persona)
     {
-        // La vista de detalle para una persona puede no ser necesaria,
-        // pero la dejamos preparada por si acaso.
         $this->authorize('view', $persona);
         return redirect()->route('personas.edit', $persona);
     }
@@ -62,14 +73,12 @@ class PersonaController extends Controller
         return to_route('personas.index')->with('success', '¡Datos de persona actualizados!');
     }
 
+
+
     public function destroy(Persona $persona): RedirectResponse
     {
         $this->authorize('delete', $persona);
-        
-        // Alerta: Eliminar una persona puede dejar casos sin deudor/codeudor.
-        // La base de datos lo manejará (poniendo a null), pero es una acción delicada.
         $persona->delete();
-        
         return to_route('personas.index')->with('success', '¡Persona eliminada del directorio!');
     }
 }

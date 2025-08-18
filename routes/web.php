@@ -37,6 +37,9 @@ use App\Http\Controllers\DocumentoLegalController;
 use App\Http\Controllers\Admin\IntegracionTokenController;
 
 use App\Http\Controllers\ContactoClienteController;
+use App\Http\Controllers\Admin\GestoresController;
+use App\Http\Controllers\ProcesoJudicialController;
+use App\Http\Controllers\Api\JuzgadoSearchController;
 
 /*
 |--------------------------------------------------------------------------
@@ -100,6 +103,8 @@ Route::get('/probar-integracion-supersolidaria', function (IntegrationService $i
 
 Route::middleware(['auth', 'verified'])->group(function () {
 
+    Route::get('/juzgados/search', JuzgadoSearchController::class)->name('juzgados.search');
+
     Route::post('/contacto-cliente', [ContactoClienteController::class, 'enviar'])->name('contacto.cliente.enviar');
 
     // --- RUTA DEL DASHBOARD ---
@@ -110,7 +115,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     
-    // 👇 ESTA ES LA RUTA PARA LAS PREFERENCIAS. ESTÁ CORRECTA. 👇
     Route::patch('/profile/preferences', [ProfileController::class, 'updatePreferences'])->name('profile.preferences.update');
     
     Route::get('/notificaciones', [NotificacionController::class, 'index'])->name('notificaciones.index');
@@ -125,8 +129,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // --- RUTAS PARA GESTIÓN DE DOCUMENTOS LEGALES DE COOPERATIVAS ---
     Route::post('cooperativas/{cooperativa}/documentos', [DocumentoLegalController::class, 'store'])->name('cooperativas.documentos.store');
     Route::get('documentos-legales/{documento}', [DocumentoLegalController::class, 'show'])->name('documentos-legales.show');
-    // ===== ¡AQUÍ ESTÁ LA CORRECCIÓN! =====
-    // Cambiamos el nombre para que coincida con lo que el frontend busca.
     Route::delete('documentos-legales/{documento}', [DocumentoLegalController::class, 'destroy'])->name('documentos.destroy');
 
 
@@ -142,11 +144,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('documentos-caso/{documento}/view', [DocumentoCasoController::class, 'view'])->name('documentos-caso.view');
         Route::delete('documentos-caso/{documento}', [DocumentoCasoController::class, 'destroy'])->name('documentos-caso.destroy');
         Route::post('/casos/{caso}/pagos', [PagoCasoController::class, 'store'])->name('casos.pagos.store');
+        
+        // ===== ¡AQUÍ ESTÁ LA RUTA AÑADIDA! =====
+        // Permite ver el comprobante de un pago específico.
+        Route::get('/pagos/{pago}/comprobante', [PagoCasoController::class, 'verComprobante'])->name('pagos.verComprobante');
+
         Route::post('/casos/{caso}/notificaciones', [NotificacionController::class, 'storeManual'])->name('casos.notificaciones.store');
         Route::get('/documentos-generados', [DocumentoGeneradoController::class, 'index'])->name('documentos-generados.index');
         Route::post('/documentos/generar', [GeneradorDocumentoController::class, 'generar'])->name('documentos.generar');
         Route::get('/documentos/{documento}/descargar-docx', [GeneradorDocumentoController::class, 'descargarDocx'])->name('documentos.descargar.docx');
         Route::get('/documentos/{documento}/descargar-pdf', [GeneradorDocumentoController::class, 'descargarPdf'])->name('documentos.descargar.pdf');
+        Route::get('/procesos-judiciales/{caso}/edit', [ProcesoJudicialController::class, 'edit'])->name('procesos.edit');
+        Route::put('/procesos-judiciales/{caso}', [ProcesoJudicialController::class, 'update'])->name('procesos.update');
     });
 
     // --- ESTRUCTURA DE RUTAS DE ADMINISTRACIÓN (CON PREFIJO /admin) ---
@@ -172,11 +181,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('requisitos', [RequisitoDocumentoController::class, 'store'])->name('requisitos.store');
         Route::delete('requisitos/{requisito}', [RequisitoDocumentoController::class, 'destroy'])->name('requisitos.destroy');
         
-        // Rutas del Módulo 11
         Route::get('integraciones', [IntegracionController::class, 'index'])->name('integraciones.index');
         Route::get('integraciones/exportar', [IntegracionController::class, 'export'])->name('integraciones.exportar');
     });
 
+    Route::middleware(['auth','role:admin'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function(){
+        Route::get('/gestores', [GestoresController::class, 'index'])->name('gestores.index');
+    });
 });
 
 require __DIR__.'/auth.php';

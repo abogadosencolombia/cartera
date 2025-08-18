@@ -166,7 +166,7 @@ const statusColors = {
                                         <div class="py-3 flex justify-between text-sm font-medium"><dt class="text-gray-500 dark:text-gray-400">¿Usa Libranza?</dt><dd class="text-gray-900 dark:text-white text-right">{{ usaLibranzaTexto }}</dd></div>
                                         <div class="py-3 flex justify-between text-sm font-medium"><dt class="text-gray-500 dark:text-gray-400">¿Requiere Carta?</dt><dd class="text-gray-900 dark:text-white text-right">{{ requiereCartaInstruccionesTexto }}</dd></div>
                                         <div class="py-3 flex justify-between text-sm font-medium"><dt class="text-gray-500 dark:text-gray-400">Garantía Frecuente</dt><dd class="text-gray-900 dark:text-white text-right">{{ cooperativa.tipo_garantia_frecuente }}</dd></div>
-                                        <div class="py-3 flex justify-between text-sm font-medium"><dt class="text-gray-500 dark:text-gray-400">Tasa Moratoria</dt><dd class="text-gray-900 dark:text-white text-right">{{ cooperativa.tasa_maxima_moratoria }}</dd></div>
+                                        <div class="py-3 flex justify-between text-sm font-medium"><dt class="text-gray-500 dark:text-gray-400">Tasa de Usura</dt><dd class="text-gray-900 dark:text-white text-right">{{ cooperativa.tasa_maxima_moratoria }}</dd></div>
                                     </dl>
                                 </div>
                             </div>

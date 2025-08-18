@@ -7,7 +7,7 @@ import DropdownLink from '@/Components/DropdownLink.vue';
 import NavLink from '@/Components/NavLink.vue';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink.vue';
 
-// Importamos todos los íconos de Heroicons para una interfaz más rica
+// Íconos
 import {
     ChartBarIcon,
     FolderIcon,
@@ -21,18 +21,16 @@ import {
     ListBulletIcon,
     ExclamationTriangleIcon,
     CircleStackIcon,
+    GlobeAltIcon,
 } from '@heroicons/vue/24/outline';
 
 const showingNavigationDropdown = ref(false);
 const page = usePage();
 
-// Propiedades computadas para un template más limpio
 const userRole = computed(() => page.props.auth.user.tipo_usuario);
 const unreadCount = computed(() => page.props.auth.unreadNotifications);
 
-// =================================================================
-// ===== EL CORAZÓN DE LA ARQUITECTURA: El "Catálogo" del Menú =====
-// =================================================================
+// Catálogo del menú reorganizado
 const navigationMenu = computed(() => [
     // --- ENLACES PRINCIPALES ---
     { type: 'link', label: 'Dashboard', href: route('dashboard'), active: 'dashboard', icon: ChartBarIcon, roles: ['admin', 'gestor', 'abogado'] },
@@ -40,70 +38,73 @@ const navigationMenu = computed(() => [
     { type: 'link', label: 'Reportes', href: route('reportes.index'), active: 'reportes.*', icon: ChartBarIcon, roles: ['admin', 'gestor', 'abogado'] },
     { type: 'notification', label: 'Notificaciones', href: route('notificaciones.index'), active: 'notificaciones.*', icon: BellIcon, roles: ['admin', 'gestor', 'abogado'] },
 
-    // --- MENÚ DESPLEGABLE: GESTIÓN ---
+    // --- MENÚ DESPLEGABLE: ENTIDADES ---
     {
         type: 'dropdown',
-        label: 'Gestión',
-        active: ['cooperativas.*', 'personas.*', 'admin.users.*'],
+        label: 'Entidades',
+        active: ['cooperativas.*', 'personas.*', 'admin.users.*', 'admin.gestores.*'],
         icon: UsersIcon,
         roles: ['admin', 'gestor', 'abogado'],
         items: [
             { label: 'Cooperativas', href: route('cooperativas.index'), active: 'cooperativas.*', roles: ['admin', 'gestor', 'abogado'] },
             { label: 'Personas', href: route('personas.index'), active: 'personas.*', roles: ['admin', 'gestor', 'abogado'] },
-            { label: 'Usuarios', href: route('admin.users.index'), active: 'admin.users.*', roles: ['admin'] },
+            { type: 'divider', roles: ['admin'] },
+            { label: 'Usuarios del Sistema', href: route('admin.users.index'), active: 'admin.users.*', roles: ['admin'] },
+            { label: 'Abogados/Gestores', href: route('admin.gestores.index'), active: 'admin.gestores.*', roles: ['admin'] },
         ]
     },
 
-    // --- MENÚ DESPLEGABLE: DEFENSA JURÍDICA ---
+    // --- MENÚ DESPLEGABLE: CONFIGURACIÓN ---
     {
         type: 'dropdown',
-        label: 'Defensa Jurídica',
-        active: ['admin.incidentes-juridicos.*', 'admin.juridico.indicadores'],
-        icon: ScaleIcon,
-        roles: ['admin'],
-        items: [
-            { label: 'Gestión de Incidentes', href: route('admin.incidentes-juridicos.index'), active: 'admin.incidentes-juridicos.*', roles: ['admin'] },
-            { label: 'Panel de Indicadores', href: route('admin.juridico.indicadores'), active: 'admin.juridico.indicadores', roles: ['admin'] },
-        ]
-    },
-
-    // --- MENÚ DESPLEGABLE: ADMINISTRACIÓN ---
-    {
-        type: 'dropdown',
-        label: 'Administración',
+        label: 'Configuración',
         active: [
-            'plantillas.*', 'documentos-generados.*', 'requisitos.*',
-            'admin.reglas-alerta.*', 'admin.auditoria.*',
-            'admin.tokens.*', 'integraciones.index'
+            'plantillas.*', 'requisitos.*', 'admin.incidentes-juridicos.*', 'admin.juridico.indicadores',
+            'admin.reglas-alerta.*', 'admin.auditoria.*', 'admin.tokens.*', 'integraciones.index', 'documentos-generados.*'
         ],
         icon: Cog6ToothIcon,
         roles: ['admin'],
         items: [
-            { label: 'Plantillas', href: route('plantillas.index'), active: 'plantillas.*', icon: DocumentTextIcon, roles: ['admin'] },
-            { label: 'Requisitos Docs', href: route('requisitos.index'), active: 'requisitos.*', icon: ListBulletIcon, roles: ['admin'] },
-            { label: 'Reglas de Alerta', href: route('admin.reglas-alerta.index'), active: 'admin.reglas-alerta.*', icon: ExclamationTriangleIcon, roles: ['admin'] },
+            { label: 'Plantillas de Documentos', href: route('plantillas.index'), active: 'plantillas.*', icon: DocumentTextIcon, roles: ['admin'] },
+            { label: 'Requisitos de Documentos', href: route('requisitos.index'), active: 'requisitos.*', icon: ListBulletIcon, roles: ['admin'] },
+            { label: 'Gestión de Incidentes', href: route('admin.incidentes-juridicos.index'), active: 'admin.incidentes-juridicos.*', icon: ScaleIcon, roles: ['admin'] },
+            { label: 'Panel de Indicadores', href: route('admin.juridico.indicadores'), active: 'admin.juridico.indicadores', icon: ChartBarIcon, roles: ['admin'] },
             { type: 'divider', roles: ['admin'] },
+            { label: 'Reglas de Alerta', href: route('admin.reglas-alerta.index'), active: 'admin.reglas-alerta.*', icon: ExclamationTriangleIcon, roles: ['admin'] },
+            { label: 'Auditoría Global', href: route('admin.auditoria.index'), active: 'admin.auditoria.index', icon: ShieldCheckIcon, roles: ['admin'] },
+            { label: 'Auditoría de Documentos', href: route('documentos-generados.index'), active: 'documentos-generados.*', icon: ShieldCheckIcon, roles: ['admin'] },
             { label: 'Gestión de Credenciales', href: route('admin.tokens.index'), active: 'admin.tokens.*', icon: KeyIcon, roles: ['admin'] },
             { label: 'Logs de Integraciones', href: route('integraciones.index'), active: 'integraciones.index', icon: CircleStackIcon, roles: ['admin'] },
-            { type: 'divider', roles: ['admin'] },
-            { label: 'Auditoría Global', href: route('admin.auditoria.index'), active: 'admin.auditoria.index', icon: ShieldCheckIcon, roles: ['admin'] },
-            { label: 'Auditoría Docs', href: route('documentos-generados.index'), active: 'documentos-generados.*', icon: ShieldCheckIcon, roles: ['admin'] },
+        ]
+    },
+
+    // --- MENÚ DESPLEGABLE: HERRAMIENTAS (CON NUEVO ENLACE) ---
+    {
+        type: 'dropdown',
+        label: 'Herramientas',
+        active: [],
+        icon: GlobeAltIcon,
+        roles: ['admin', 'gestor', 'abogado'],
+        items: [
+            { type: 'external', label: 'Consulta Rama Judicial', href: 'https://consultaprocesos.ramajudicial.gov.co/procesos/Index', roles: ['admin', 'gestor', 'abogado'] },
+            { type: 'external', label: 'Asistente IA (ChatGPT)', href: 'https://chatgpt.com/g/g-68360119b4d48191898d44cb97865146-supervisor-crearcorp', roles: ['admin', 'gestor', 'abogado'] },
+            // ===== ¡NUEVO ENLACE AÑADIDO! =====
+            { type: 'external', label: 'Asistente Gemini', href: 'https://gemini.google.com/', roles: ['admin', 'gestor', 'abogado'] },
         ]
     },
 ]);
 
-// Función para comprobar si una ruta está activa, soportando wildcards (*).
+// Ruta activa con wildcard
 const isRouteActive = (patterns) => {
     if (!Array.isArray(patterns)) patterns = [patterns];
     return patterns.some(pattern => route().current(pattern));
 };
 
-// Menú final que se mostrará, filtrado por el rol del usuario.
+// Menú visible filtrado por rol
 const visibleMenu = computed(() => {
     return navigationMenu.value
         .filter(item => item.roles.includes(userRole.value))
         .map(item => {
-            // Se crea una copia para no modificar el objeto original
             const newItem = { ...item };
             if (newItem.type === 'dropdown' && newItem.items) {
                 newItem.items = newItem.items.filter(subItem => subItem.roles.includes(userRole.value));
@@ -145,7 +146,7 @@ const visibleMenu = computed(() => {
                                     </NavLink>
 
                                     <div v-else-if="item.type === 'dropdown'" class="hidden sm:flex sm:items-center sm:ms-1">
-                                        <Dropdown align="left" width="56">
+                                        <Dropdown align="left" :width="item.label === 'Configuración' ? '64' : '56'">
                                             <template #trigger>
                                                 <button class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium leading-5 focus:outline-none transition duration-150 ease-in-out" :class="isRouteActive(item.active) ? 'border-indigo-400 dark:border-indigo-600 text-gray-900 dark:text-gray-100' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'">
                                                     <component :is="item.icon" class="h-5 w-5 mr-1" aria-hidden="true" />
@@ -156,6 +157,12 @@ const visibleMenu = computed(() => {
                                             <template #content>
                                                 <template v-for="(subItem, index) in item.items" :key="index">
                                                     <div v-if="subItem.type === 'divider'" class="border-t border-gray-200 dark:border-gray-600 my-1"></div>
+                                                    
+                                                    <a v-else-if="subItem.type === 'external'" :href="subItem.href" target="_blank" class="block w-full px-4 py-2 text-start text-sm leading-5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:bg-gray-100 dark:focus:bg-gray-800 transition duration-150 ease-in-out flex items-center">
+                                                        <component v-if="subItem.icon" :is="subItem.icon" class="h-4 w-4 mr-2 inline-block text-gray-400" aria-hidden="true"/>
+                                                        {{ subItem.label }}
+                                                    </a>
+                                                    
                                                     <DropdownLink v-else :href="subItem.href" :active="isRouteActive(subItem.active)">
                                                         <component v-if="subItem.icon" :is="subItem.icon" class="h-4 w-4 mr-2 inline-block text-gray-400" aria-hidden="true"/>
                                                         {{ subItem.label }}
@@ -214,10 +221,16 @@ const visibleMenu = computed(() => {
                             <div class="mt-3 space-y-1">
                                 <template v-for="(subItem, subIndex) in item.items" :key="subIndex">
                                     <div v-if="subItem.type === 'divider'" class="border-t border-gray-200 dark:border-gray-600 my-1"></div>
+                                    <a v-else-if="subItem.type === 'external'" :href="subItem.href" target="_blank" class="block ps-3 pe-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600 focus:outline-none focus:text-gray-800 dark:focus:text-gray-200 focus:bg-gray-50 dark:focus:bg-gray-700 focus:border-gray-300 dark:focus:border-gray-600 transition duration-150 ease-in-out">
+                                        <span class="ms-4">
+                                            <component v-if="subItem.icon" :is="subItem.icon" class="h-5 w-5 mr-3 inline-block text-gray-400" aria-hidden="true"/>
+                                            {{ subItem.label }}
+                                        </span>
+                                    </a>
                                     <ResponsiveNavLink v-else :href="subItem.href" :active="isRouteActive(subItem.active)">
                                         <span class="ms-4">
-                                             <component v-if="subItem.icon" :is="subItem.icon" class="h-5 w-5 mr-3 inline-block text-gray-400" aria-hidden="true"/>
-                                             {{ subItem.label }}
+                                            <component v-if="subItem.icon" :is="subItem.icon" class="h-5 w-5 mr-3 inline-block text-gray-400" aria-hidden="true"/>
+                                            {{ subItem.label }}
                                         </span>
                                     </ResponsiveNavLink>
                                 </template>

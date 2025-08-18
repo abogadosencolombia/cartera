@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-// Tus controladores y modelos existentes
 use App\Models\Caso;
 use App\Models\Cooperativa;
 use App\Models\Persona;
@@ -18,6 +17,7 @@ use Inertia\Response;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use App\Services\IntegrationService;
 use App\Services\ValidacionLegalService;
+use App\Models\Juzgado;
 
 class CasoController extends Controller
 {
@@ -30,7 +30,7 @@ class CasoController extends Controller
         $query = Caso::with(['cooperativa', 'deudor', 'user']);
 
         if ($user->tipo_usuario === 'admin') {
-            // Sin filtro
+            // No additional filters
         } elseif (in_array($user->tipo_usuario, ['gestor', 'abogado'])) {
             $cooperativaIds = $user->cooperativas->pluck('id');
             $query->whereIn('cooperativa_id', $cooperativaIds);
@@ -43,7 +43,7 @@ class CasoController extends Controller
         }
 
         return Inertia::render('Casos/Index', [
-            'casos' => $query->get(),
+            'casos' => $query->latest()->get(),
             'can' => ['delete_cases' => $user->can('delete', Caso::class)]
         ]);
     }
@@ -64,88 +64,47 @@ class CasoController extends Controller
             'cooperativas' => $cooperativas,
             'abogadosYGestores' => $abogadosYGestores,
             'personas' => $personas,
+            'subtipos_proceso' => ['CURADURIA', 'DIVISORIO', 'GARANTIA REAL', 'HIPOTECARIO', 'INSOLVENCIA', 'LABORAL', 'MIXTO', 'MUEBLE', 'PAGO DIRECTO', 'PRENDARIO', 'SINGULAR', 'SUCESIÓN'],
+            'etapas_procesales' => ['Avalúo y Remate', 'Notificación', 'Contestación Demanda', 'Audiencia Inicial', 'Audiencia de Instrucción y Juzgamiento', 'Sentencia', 'Apelación', 'Ejecución de Sentencia', 'Liquidación', 'Terminación'],
         ]);
     }
-    
-    /**
-     * Almacena un nuevo caso, maneja la clonación de validaciones y dispara la validación automática.
-     */
-    public function store(StoreCasoRequest $request, IntegrationService $integrationService, ValidacionLegalService $validacionService): RedirectResponse
+        
+    public function store(StoreCasoRequest $request): RedirectResponse
     {
         $this->authorize('create', Caso::class);
         $caso = Caso::create($request->validated());
-
-        // ===== LÓGICA DE VALIDACIONES MEJORADA =====
-        if ($request->filled('clonado_de_id')) {
-            // Si es un clon, copiamos las validaciones del original.
-            $casoOriginal = Caso::with('validacionesLegales.requisito')->find($request->clonado_de_id);
-            if ($casoOriginal && $casoOriginal->validacionesLegales->isNotEmpty()) {
-                foreach ($casoOriginal->validacionesLegales as $validacionOriginal) {
-                    $caso->validacionesLegales()->create([
-                        'requisito_id' => $validacionOriginal->requisito_id,
-                        'estado' => $validacionOriginal->estado,
-                        'nivel_riesgo' => $validacionOriginal->requisito->nivel_riesgo ?? 'medio',
-                        'observacion' => 'Validación clonada desde el caso #' . $casoOriginal->id,
-                        'accion_correctiva' => $validacionOriginal->accion_correctiva,
-                    ]);
-                }
-            }
-        } else {
-            // Si es un caso nuevo, generamos las validaciones desde cero.
-            $validacionService->generarValidacionesParaCaso($caso);
-        }
-        // ==========================================================
-
-        $bitacora = $caso->bitacoras()->create([
+        
+        $caso->bitacoras()->create([
             'user_id' => auth()->id(),
             'accion' => $request->clonado_de_id ? 'Clonación de Caso' : 'Creación del Caso',
             'comentario' => $request->clonado_de_id 
                 ? 'El caso fue creado como un clon del caso #' . $request->clonado_de_id
                 : 'El caso ha sido registrado en el sistema.'
         ]);
-        \App\Events\EventoAuditoriaSospechoso::dispatch($bitacora, auth()->user());
 
-        $cooperativa = Cooperativa::find($request->cooperativa_id);
-        $validationMessage = '';
-        if ($cooperativa && $cooperativa->nit) {
-            $urlDelSimulador = url('/api/simulador/supersolidaria/validar/' . $cooperativa->nit);
-            $respuesta = $integrationService->ejecutar('Supersolidaria (Simulador)', 'get', $urlDelSimulador);
-            if (isset($respuesta['error']) && $respuesta['error']) {
-                $validationMessage = 'ADVERTENCIA: No se pudo validar la cooperativa en Supersolidaria. Código de error: ' . ($respuesta['status_code'] ?? 'Desconocido');
-            } else {
-                $estado = $respuesta['estado'] ?? 'Desconocido';
-                $validationMessage = "VALIDACIÓN EXITOSA: El estado de la cooperativa en Supersolidaria es: '{$estado}'.";
-            }
-        } else {
-            $validationMessage = 'ADVERTENCIA: La cooperativa no tiene un NIT registrado para poder ser validada.';
-        }
-
-        return to_route('casos.show', $caso->id)->with([
-            'success' => '¡Caso registrado exitosamente!',
-            'validation_info' => $validationMessage,
-        ]);
+        return to_route('casos.show', $caso->id)->with('success', '¡Caso registrado exitosamente!');
     }
 
-    /**
-     * Muestra el detalle de un caso, cargando todas las relaciones necesarias.
-     */
     public function show(Caso $caso): Response
     {
         $this->authorize('view', $caso);
 
-        // Cargamos todas las relaciones que tus componentes necesitan de forma eficiente
+        // ===== ¡AQUÍ ESTÁ LA CORRECCIÓN! =====
+        // Añadimos 'codeudor1' y 'codeudor2' a la lista de datos a cargar.
         $caso->load([
             'deudor', 
+            'codeudor1', // <-- LÍNEA AÑADIDA
+            'codeudor2', // <-- LÍNEA AÑADIDA
             'cooperativa', 
             'user', 
             'documentos', 
             'bitacoras.user', 
             'documentosGenerados.usuario',
-            'pagos.usuario', // <--- ¡AQUÍ ESTÁ LA CORRECCIÓN!
+            'pagos.usuario',
             'validacionesLegales.requisito',
+            'juzgado'
         ]);
         
-        // Hacemos que la relación 'auditoria' use los datos de 'bitacoras' para consistencia
         $caso->setRelation('auditoria', $caso->bitacoras);
 
         $plantillasDisponibles = PlantillaDocumento::where('activa', true)
@@ -169,31 +128,35 @@ class CasoController extends Controller
     {
         $this->authorize('update', $caso);
         $user = Auth::user();
+
+        $caso->load('juzgado');
+
         $cooperativas = ($user->tipo_usuario === 'admin') ? Cooperativa::select('id', 'nombre')->get() : $user->cooperativas()->select('id', 'nombre')->get();
         $abogadosYGestores = User::whereIn('tipo_usuario', ['abogado', 'gestor'])->select('id', 'name')->get();
         $personas = Persona::select('id', 'nombre_completo', 'numero_documento')->get();
+
         return Inertia::render('Casos/Edit', [
             'caso' => $caso,
             'cooperativas' => $cooperativas,
             'abogadosYGestores' => $abogadosYGestores,
             'personas' => $personas,
+            'subtipos_proceso' => ['CURADURIA', 'DIVISORIO', 'GARANTIA REAL', 'HIPOTECARIO', 'INSOLVENCIA', 'LABORAL', 'MIXTO', 'MUEBLE', 'PAGO DIRECTO', 'PRENDARIO', 'SINGULAR', 'SUCESIÓN'],
+            'etapas_procesales' => ['Avalúo y Remate', 'Notificación', 'Contestación Demanda', 'Audiencia Inicial', 'Audiencia de Instrucción y Juzgamiento', 'Sentencia', 'Apelación', 'Ejecución de Sentencia', 'Liquidación', 'Terminación'],
         ]);
     }
-    
-    public function update(UpdateCasoRequest $request, Caso $caso, ValidacionLegalService $validacionService): RedirectResponse
+
+    public function update(UpdateCasoRequest $request, Caso $caso): RedirectResponse
     {
         $this->authorize('update', $caso);
         $caso->update($request->validated());
-        $validacionService->generarValidacionesParaCaso($caso);
-        $caso->load('validacionesLegales');
-        if ($request->input('estado_proceso') === 'demandado' && $caso->estado_proceso !== 'demandado') {
-            $fallasGravesOMedias = $caso->validacionesLegales()->where('estado', 'incumple')->whereIn('nivel_riesgo', ['alto', 'medio'])->exists();
-            if ($fallasGravesOMedias) {
-                return back()->with('error', 'Acción Bloqueada: No se puede radicar el caso porque existen fallas de cumplimiento de riesgo ALTO o MEDIO. Por favor, corríjalas primero.');
-            }
-        }
-        $caso->bitacoras()->create(['user_id' => auth()->id(), 'accion' => 'Actualización de Caso', 'comentario' => 'Se actualizaron los datos principales del caso.']);
-        return to_route('casos.show', $caso->id)->with('success', '¡Caso actualizado y re-validado exitosamente!');
+
+        $caso->bitacoras()->create([
+            'user_id' => auth()->id(), 
+            'accion' => 'Actualización de Caso', 
+            'comentario' => 'Se actualizaron los datos principales del caso.'
+        ]);
+
+        return to_route('casos.show', $caso->id)->with('success', '¡Caso actualizado exitosamente!');
     }
 
     public function destroy(Caso $caso): RedirectResponse
@@ -207,11 +170,16 @@ class CasoController extends Controller
     {
         $this->authorize('create', Caso::class);
         $this->authorize('view', $caso);
+
+        $caso->load('juzgado');
+
         return Inertia::render('Casos/Create', [
             'casoAClonar' => $caso,
             'cooperativas' => Cooperativa::all(['id', 'nombre']),
             'abogadosYGestores' => User::whereIn('tipo_usuario', ['abogado', 'gestor'])->select('id', 'name')->get(),
             'personas' => Persona::select('id', 'nombre_completo', 'numero_documento')->get(),
+            'subtipos_proceso' => ['CURADURIA', 'DIVISORIO', 'GARANTIA REAL', 'HIPOTECARIO', 'INSOLVENCIA', 'LABORAL', 'MIXTO', 'MUEBLE', 'PAGO DIRECTO', 'PRENDARIO', 'SINGULAR', 'SUCESIÓN'],
+            'etapas_procesales' => ['Avalúo y Remate', 'Notificación', 'Contestación Demanda', 'Audiencia Inicial', 'Audiencia de Instrucción y Juzgamiento', 'Sentencia', 'Apelación', 'Ejecución de Sentencia', 'Liquidación', 'Terminación'],
         ]);
     }
 }

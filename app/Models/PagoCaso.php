@@ -5,10 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-
-// ===== ¡ASEGÚRATE DE QUE ESTA LÍNEA EXISTA! =====
-// Necesitamos decirle a este archivo que vamos a usar el modelo User.
-use App\Models\User;
+use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Support\Facades\Storage;
 
 class PagoCaso extends Model
 {
@@ -16,35 +14,70 @@ class PagoCaso extends Model
 
     protected $table = 'pagos_caso';
 
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array<int, string>
+     */
     protected $fillable = [
         'caso_id',
+        'user_id',
         'monto_pagado',
         'fecha_pago',
         'motivo_pago',
-        'user_id', // <-- Es buena práctica añadir el user_id aquí también
+        'comprobante_path', // <-- ¡Importante! Campo para la ruta del archivo
     ];
 
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
+     */
     protected $casts = [
         'fecha_pago' => 'date',
         'monto_pagado' => 'decimal:2',
     ];
 
     /**
-     * Un pago pertenece a un único Caso.
+     * The accessors to append to the model's array form.
+     *
+     * @var array<int, string>
+     */
+    protected $appends = ['comprobante_url'];
+
+    // --- RELACIONES ---
+
+    /**
+     * A payment belongs to a single Case.
      */
     public function caso(): BelongsTo
     {
         return $this->belongsTo(Caso::class);
     }
 
-    // =======================================================
-    // ===== ¡AQUÍ ESTÁ EL MÉTODO QUE SOLUCIONA EL ERROR! =====
-    // =======================================================
     /**
-     * Obtiene el usuario que registró el pago.
+     * Get the user who registered the payment.
      */
     public function usuario(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    // --- ACCESOR ---
+
+    /**
+     * Generate a virtual 'comprobante_url' attribute to access the file.
+     */
+    protected function comprobanteUrl(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                if ($this->comprobante_path && Storage::disk('private')->exists($this->comprobante_path)) {
+                    // Generates the URL using the route we created in web.php
+                    return route('pagos.verComprobante', $this);
+                }
+                return null;
+            }
+        );
     }
 }
