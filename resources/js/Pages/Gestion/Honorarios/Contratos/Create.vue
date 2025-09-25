@@ -1,12 +1,14 @@
 <script setup>
 import { Head, Link, useForm } from '@inertiajs/vue3'
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue'
 import { onClickOutside } from '@vueuse/core'
 
 const props = defineProps({
   clientes: { type: Array, default: () => [] },
-  modalidades: { type: Array, default: () => [] }
+  modalidades: { type: Array, default: () => [] },
+  // MODIFICACIÓN: Se añade la prop 'plantilla' para manejar la reestructuración
+  plantilla: { type: Object, default: null }
 })
 
 const todayYmd = () => new Date().toISOString().slice(0, 10)
@@ -19,10 +21,12 @@ const form = useForm({
   cuotas: 12,
   inicio: todayYmd(),
   nota: '',
-  porcentaje_litis: null, // Campo añadido para la lógica dinámica
+  porcentaje_litis: null,
+  // MODIFICACIÓN: Se añade el campo para rastrear el origen
+  contrato_origen_id: null,
 })
 
-// --- BÚSQUEDA DE CLIENTES MEJORADA (Se mantiene tu versión) ---
+// --- BÚSQUEDA DE CLIENTES MEJORADA ---
 const clienteSearch = ref('')
 const selectedClientName = ref('')
 const isClientListOpen = ref(false)
@@ -51,10 +55,9 @@ watch(clienteSearch, (newVal) => {
 onClickOutside(clientDropdown, () => isClientListOpen.value = false)
 
 
-// --- LÓGICA DEL FORMULARIO Y CRONOGRAMA (AHORA 100% DINÁMICA) ---
+// --- LÓGICA DEL FORMULARIO Y CRONOGRAMA ---
 const fmtMoney = (n) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(Number(n || 0))
 
-// Limpia los campos que no son necesarios al cambiar de modalidad para evitar enviar datos incorrectos
 watch(() => form.modalidad, (newModalidad) => {
     if (newModalidad === 'LITIS') {
         form.monto_total = null;
@@ -66,6 +69,32 @@ watch(() => form.modalidad, (newModalidad) => {
         form.porcentaje_litis = null;
     }
 });
+
+// MODIFICACIÓN: Hook onMounted para pre-llenar el formulario si viene de una reestructuración
+onMounted(() => {
+  if (props.plantilla) {
+    const clienteOriginal = props.clientes.find(c => c.id === props.plantilla.cliente_id)
+    
+    form.defaults({
+      cliente_id: props.plantilla.cliente_id,
+      monto_total: props.plantilla.monto_total,
+      anticipo: props.plantilla.anticipo,
+      modalidad: props.plantilla.modalidad,
+      cuotas: 12, // Se resetea el número de cuotas
+      inicio: todayYmd(),
+      nota: `Reestructuración del contrato #${props.plantilla.id}.`,
+      porcentaje_litis: props.plantilla.porcentaje_litis,
+      contrato_origen_id: props.plantilla.id,
+    })
+    form.reset()
+
+    // Actualizar la UI del buscador de clientes
+    if (clienteOriginal) {
+      selectClient(clienteOriginal)
+    }
+  }
+})
+
 
 const addMonthsNoOverflow = (ymd, add) => {
   if (!ymd) return ''
@@ -119,15 +148,18 @@ const submit = () => {
 </script>
 
 <template>
-  <Head title="Nuevo Contrato · Honorarios" />
+  <Head :title="`${props.plantilla ? 'Reestructurar' : 'Nuevo'} Contrato · Honorarios`" />
 
   <AuthenticatedLayout>
     <template #header>
       <div class="flex items-center justify-between">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200">Crear Nuevo Contrato</h2>
+        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200">
+            {{ props.plantilla ? `Reestructurar Contrato #${props.plantilla.id}` : 'Crear Nuevo Contrato' }}
+        </h2>
         <div class="flex items-center gap-4">
-          <Link :href="route('honorarios.contratos.index')" class="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200">
-            Cancelar
+          <Link :href="route('honorarios.contratos.index')" class="text-sm px-3 py-2 rounded-md bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            Volver
           </Link>
           <button @click="submit" :disabled="form.processing"
                   class="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors">
@@ -141,6 +173,21 @@ const submit = () => {
     <div class="py-8">
       <div class="max-w-4xl mx-auto sm:px-6 lg:px-8 space-y-6">
 
+        <!-- MODIFICACIÓN: Alerta de reestructuración -->
+        <div v-if="props.plantilla" class="bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-400 p-4 rounded-md shadow-sm">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-amber-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-semibold text-amber-800 dark:text-amber-300">Modo Reestructuración</p>
+                    <p class="mt-1 text-sm text-amber-700 dark:text-amber-400">
+                        Estás creando un nuevo contrato basado en el <strong>#{{ props.plantilla.id }}</strong>. Ajusta los valores y la modalidad según sea necesario.
+                    </p>
+                </div>
+            </div>
+        </div>
+
         <!-- Card 1: Información Principal -->
         <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg">
           <div class="p-6 border-b dark:border-gray-700 flex items-center gap-3">
@@ -151,11 +198,12 @@ const submit = () => {
             <div class="md:col-span-2 relative" ref="clientDropdown">
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Cliente *</label>
               <input type="text" v-model="clienteSearch" @focus="isClientListOpen = true"
+                     :disabled="!!props.plantilla"
                      placeholder="Escribe para buscar un cliente..."
-                     class="mt-1 w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 shadow-sm focus:ring-indigo-500 focus:border-indigo-500" />
+                     class="mt-1 w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 dark:disabled:bg-gray-800/50" />
               <p v-if="form.errors.cliente_id" class="mt-1 text-sm text-red-600">{{ form.errors.cliente_id }}</p>
               <transition enter-active-class="transition ease-out duration-100" enter-from-class="transform opacity-0 scale-95" enter-to-class="transform opacity-100 scale-100" leave-active-class="transition ease-in duration-75" leave-from-class="transform opacity-100 scale-100" leave-to-class="transform opacity-0 scale-95">
-                <div v-if="isClientListOpen" class="absolute z-10 mt-1 w-full bg-white dark:bg-gray-900 shadow-lg rounded-md border dark:border-gray-700 max-h-60 overflow-y-auto">
+                <div v-if="isClientListOpen && !props.plantilla" class="absolute z-10 mt-1 w-full bg-white dark:bg-gray-900 shadow-lg rounded-md border dark:border-gray-700 max-h-60 overflow-y-auto">
                     <ul class="py-1">
                       <li v-if="filteredClients.length === 0" class="px-4 py-2 text-sm text-gray-500">No hay coincidencias</li>
                       <li v-for="client in filteredClients" :key="client.id" @click="selectClient(client)"
@@ -173,13 +221,13 @@ const submit = () => {
               <p v-if="form.errors.inicio" class="mt-1 text-sm text-red-600">{{ form.errors.inicio }}</p>
             </div>
             
-             <div>
+              <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Anticipo (Opcional)</label>
-               <div class="relative mt-1">
-                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">COP</div>
-                <input type="number" v-model.number="form.anticipo" placeholder="0" class="pl-12 w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 shadow-sm focus:ring-indigo-500 focus:border-indigo-500" />
-               </div>
-               <p v-if="form.errors.anticipo" class="mt-1 text-sm text-red-600">{{ form.errors.anticipo }}</p>
+                <div class="relative mt-1">
+                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">COP</div>
+                  <input type="number" v-model.number="form.anticipo" placeholder="0" class="pl-12 w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 shadow-sm focus:ring-indigo-500 focus:border-indigo-500" />
+                </div>
+                <p v-if="form.errors.anticipo" class="mt-1 text-sm text-red-600">{{ form.errors.anticipo }}</p>
             </div>
           </div>
         </div>

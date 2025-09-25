@@ -10,17 +10,16 @@ class TiposProcesoSeeder extends Seeder
     public function run(): void
     {
         $tipos = [
+            'CURADURIA',
             'EJECUTIVO',
-            'CIVIL',
+            'RESTITUCION',
             'LABORAL',
-            'FAMILIA',
-            'PENAL',
-            'ADMINISTRATIVO',
-            'CONSTITUCIONAL',
-            'INSOLVENCIA',
-            'SUCESIÓN',
-            'COMERCIAL',
-            'OTRO',
+            'PAGO DIRECTO',
+            'REGIMEN DE INSOLVENCIA',
+            'INSOLVENCIA ECONOMICA',
+            'PERSONAL',
+            'PROCESO VERBAL',
+        
         ];
 
         foreach ($tipos as $nombre) {

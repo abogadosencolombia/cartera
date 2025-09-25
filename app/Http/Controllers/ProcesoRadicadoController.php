@@ -40,6 +40,13 @@ class ProcesoRadicadoController extends Controller
             });
         }
 
+        // --- INICIO DE LA MODIFICACIÓN ---
+        // Añadimos el filtro por estado del proceso
+        if ($request->filled('estado') && in_array($request->input('estado'), ['ACTIVO', 'CERRADO'])) {
+            $query->where('estado', $request->input('estado'));
+        }
+        // --- FIN DE LA MODIFICACIÓN ---
+
         if ($desde = $request->date('rev_desde')) {
             $query->whereDate('fecha_proxima_revision', '>=', $desde);
         }
@@ -62,7 +69,8 @@ class ProcesoRadicadoController extends Controller
                                 ->orderBy('radicado')
                                 ->paginate(15)
                                 ->withQueryString(),
-            'filtros'  => $request->only(['search', 'rev_desde', 'rev_hasta']),
+            // Pasamos el nuevo filtro a la vista
+            'filtros'  => $request->only(['search', 'rev_desde', 'rev_hasta', 'estado']),
             'abogados' => $abogadosParaFiltro,
         ]);
     }
@@ -82,6 +90,10 @@ class ProcesoRadicadoController extends Controller
     {
         $data = $request->validated();
         $data['created_by'] = $request->user()->id;
+        // --- INICIO DE LA MODIFICACIÓN ---
+        // Aseguramos que los nuevos procesos se creen como ACTIVOS por defecto
+        $data['estado'] = 'ACTIVO';
+        // --- FIN DE LA MODIFICACIÓN ---
 
         $proceso = ProcesoRadicado::create($data);
 
@@ -91,7 +103,6 @@ class ProcesoRadicadoController extends Controller
 
     /**
      * Mostrar detalle del proceso.
-     * PASO 5: documentos en orden descendente de creación.
      */
     public function show(ProcesoRadicado $proceso): Response
     {
@@ -184,4 +195,35 @@ class ProcesoRadicadoController extends Controller
 
         return to_route('procesos.index')->with('success', 'Archivo importado correctamente.');
     }
+
+    /**
+     * Cerrar un proceso.
+     */
+    public function close(Request $request, ProcesoRadicado $proceso)
+    {
+        $request->validate([
+            'nota_cierre' => ['required', 'string', 'max:5000'],
+        ]);
+
+        $proceso->update([
+            'estado' => 'CERRADO',
+            'nota_cierre' => $request->input('nota_cierre'),
+        ]);
+
+        return back()->with('success', 'El caso ha sido cerrado.');
+    }
+
+    /**
+     * Reabrir un proceso cerrado.
+     */
+    public function reopen(ProcesoRadicado $proceso)
+    {
+        $proceso->update([
+            'estado' => 'ACTIVO',
+            'nota_cierre' => null,
+        ]);
+
+        return back()->with('success', 'El caso ha sido reabierto exitosamente.');
+    }
 }
+

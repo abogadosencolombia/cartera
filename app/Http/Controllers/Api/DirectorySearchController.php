@@ -3,89 +3,105 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Models\Cooperativa;
 use App\Models\User;
 use App\Models\Persona;
-use Illuminate\Support\Facades\DB;
+use App\Models\TipoProceso;
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 
 class DirectorySearchController extends Controller
 {
     /**
-     * Busca en TODOS los usuarios activos.
-     * Se elimina el filtro restrictivo de 'abogado' o 'gestor'
-     * para asegurar que siempre se puedan encontrar y seleccionar a los responsables,
-     * sin importar su rol.
+     * Busca cooperativas por nombre.
      */
-    public function usuariosAbogadosYGestores(Request $request)
+    public function cooperativas(Request $request): JsonResponse
     {
-        $q = trim($request->get('q', ''));
-        $limit = (int) $request->get('limit', 15);
+        $query = $request->query('q', $request->query('term', ''));
 
-        $users = User::query()
-            // ->whereIn('tipo_usuario', ['abogado', 'gestor']) // <-- SE ELIMINA ESTA LÍNEA RESTRICTIVA
-            ->when($q !== '', function ($query) use ($q) {
-                $query->where(function ($w) use ($q) {
-                    $w->where('name', 'like', "%{$q}%")
-                      ->orWhere('email', 'like', "%{$q}%");
-                });
-            })
-            ->orderBy('name')
-            ->limit($limit)
-            ->get(['id', 'name', 'email']);
+        if (strlen($query) < 3) {
+            return response()->json([]);
+        }
 
-        return $users->map(fn($user) => [
-            'id'    => $user->id,
-            'label' => "{$user->name} ({$user->email})",
-        ]);
+        $results = Cooperativa::where('nombre', 'LIKE', "%{$query}%")
+            ->select('id', 'nombre as label')
+            ->limit(10)
+            ->get();
+
+        return response()->json($results);
     }
 
     /**
-     * Personas (demandante / demandado)
+     * Busca usuarios con rol de 'abogado' o 'gestor' por nombre.
      */
-    public function personas(Request $request)
+    public function usuariosAbogadosYGestores(Request $request): JsonResponse
     {
-        $q = trim($request->get('q', ''));
-        $limit = (int) $request->get('limit', 15);
+        $query = $request->query('q', $request->query('term', ''));
 
-        $items = Persona::query()
-            ->when($q !== '', function ($query) use ($q) {
-                $query->where(function ($w) use ($q) {
-                    $w->where('nombre_completo', 'like', "%{$q}%")
-                      ->orWhere('numero_documento', 'like', "%{$q}%");
-                });
-            })
-            ->orderBy('nombre_completo')
-            ->limit($limit)
-            ->get(['id','nombre_completo','numero_documento','ciudad']);
+        if (strlen($query) < 3) {
+            return response()->json([]);
+        }
 
-        return $items->map(function ($persona) {
-            $doc = $persona->numero_documento ?: 's/doc';
-            $ciudad = $persona->ciudad ?: 's/ciudad';
-            return [
-                'id'    => $persona->id,
-                'label' => "{$persona->nombre_completo} ({$doc} • {$ciudad})",
-            ];
-        });
+        // ===== INICIO DE LA CORRECCIÓN FINAL =====
+        // Se ajusta la consulta para usar la columna correcta 'tipo_usuario'
+        // según la estructura de la base de datos.
+        $results = User::whereIn('tipo_usuario', ['abogado', 'gestor'])
+            ->where('name', 'LIKE', "%{$query}%")
+            ->select('id', 'name as label')
+            ->limit(10)
+            ->get();
+        // ===== FIN DE LA CORRECCIÓN FINAL =====
+
+        return response()->json($results);
     }
 
     /**
-     * Tipos de proceso
+     * Busca personas por nombre o número de documento.
      */
-    public function tiposProceso(Request $request)
+    public function personas(Request $request): JsonResponse
     {
-        $q = trim($request->get('q', ''));
-        $limit = (int) $request->get('limit', 20);
+        $query = $request->query('q', $request->query('term', ''));
 
-        $items = DB::table('tipos_proceso')
-            ->when($q !== '', fn($query) => $query->where('nombre', 'like', "%{$q}%"))
-            ->orderBy('nombre')
-            ->limit($limit)
-            ->get(['id','nombre']);
+        if (strlen($query) < 3) {
+            return response()->json([]);
+        }
 
-        return $items->map(fn($tipo) => [
-            'id'    => $tipo->id,
-            'label' => $tipo->nombre,
-        ]);
+        $results = Persona::where(function ($q) use ($query) {
+                $q->where('nombre_completo', 'LIKE', "%{$query}%")
+                    ->orWhere('numero_documento', 'LIKE', "%{$query}%");
+            })
+            ->select('id', 'nombre_completo', 'numero_documento')
+            ->limit(10)
+            ->get()
+            ->map(function ($persona) {
+                return [
+                    'id' => $persona->id,
+                    'label' => "{$persona->nombre_completo} ({$persona->numero_documento})",
+                    'nombre_completo' => $persona->nombre_completo,
+                    'numero_documento' => $persona->numero_documento,
+                ];
+            });
+
+        return response()->json($results);
+    }
+
+    /**
+     * Busca tipos de proceso por nombre.
+     */
+    public function tiposProceso(Request $request): JsonResponse
+    {
+        $query = $request->query('q', $request->query('term', ''));
+
+        if (strlen($query) < 2) { // Puedes ajustar el mínimo si lo deseas
+            return response()->json([]);
+        }
+
+        $results = TipoProceso::where('nombre', 'like', "%{$query}%")
+            ->select('id', 'nombre as label') // 'label' es lo que AsyncSelect muestra por defecto
+            ->limit(10)
+            ->get();
+
+        return response()->json($results);
     }
 }
 

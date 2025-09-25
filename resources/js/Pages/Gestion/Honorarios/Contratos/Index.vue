@@ -1,8 +1,8 @@
 <script setup>
 import { Head, Link, router } from '@inertiajs/vue3'
-import { ref, computed, watch } from 'vue'
+import { ref, watch } from 'vue'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue'
-import Pagination from '@/Components/Pagination.vue' // Reutilizamos el componente de paginación
+import Pagination from '@/Components/Pagination.vue'
 
 const props = defineProps({
   contratos: { type: Object, default: () => ({ data: [] }) },
@@ -20,7 +20,6 @@ const buscarContratos = () => {
   )
 }
 
-// Búsqueda automática y optimizada
 watch(q, () => buscarContratos())
 watch(estado, () => buscarContratos())
 
@@ -29,12 +28,12 @@ const limpiarFiltros = () => {
   estado.value = ''
 }
 
-// --- Helpers ---
 const fmtMoney = (n) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(Number(n || 0))
 const fmtDateShort = (d) => d ? new Date(d.replace(/-/g, '/')).toLocaleDateString('es-CO', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'
 
 const estadoClass = (e) => {
   const s = String(e || '').toUpperCase()
+  if (s === 'EN_MORA') return 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'
   if (s === 'CERRADO') return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
   if (s === 'PAGOS_PENDIENTES') return 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300'
   return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
@@ -54,7 +53,12 @@ const calcularProgreso = (contrato) => {
   <AuthenticatedLayout>
     <template #header>
       <div class="flex items-center justify-between">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200">Centro de Mando · Honorarios</h2>
+        <div class="flex items-center gap-4">
+            <Link :href="route('dashboard')" class="text-sm p-2 rounded-md bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            </Link>
+            <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200">Centro de Mando · Honorarios</h2>
+        </div>
         <Link :href="route('honorarios.contratos.create')"
               class="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
@@ -101,6 +105,7 @@ const calcularProgreso = (contrato) => {
               <option value="">Todos los Estados</option>
               <option value="ACTIVO">Activo</option>
               <option value="PAGOS_PENDIENTES">Pagos Pendientes</option>
+              <option value="EN_MORA">En Mora</option>
               <option value="CERRADO">Cerrado</option>
             </select>
             <button v-if="q || estado" @click="limpiarFiltros" class="text-sm text-gray-500 hover:text-gray-700">Limpiar</button>

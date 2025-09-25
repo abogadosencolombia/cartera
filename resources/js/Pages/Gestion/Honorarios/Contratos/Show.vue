@@ -1,21 +1,29 @@
 <script setup>
 import { Head, Link, useForm, router } from '@inertiajs/vue3'
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue'
 import Pagination from '@/Components/Pagination.vue'
 import Modal from '@/Components/Modal.vue'
 import InputError from '@/Components/InputError.vue'
+import PrimaryButton from '@/Components/PrimaryButton.vue'
+import SecondaryButton from '@/Components/SecondaryButton.vue'
+import InputLabel from '@/Components/InputLabel.vue'
+import TextInput from '@/Components/TextInput.vue'
+import Textarea from '@/Components/Textarea.vue'
+import { onClickOutside } from '@vueuse/core'
 
 // --- PROPS ---
 const props = defineProps({
   contrato: { type: Object, default: () => ({}) },
+  contratoOrigen: { type: Object, default: null },
   cliente:  { type: Object, default: () => ({}) },
-  // Ajuste de defaults para evitar errores cuando no hay datos iniciales
-  cuotas:   { type: Object, default: () => ({ data: [] }) }, // paginado: { data, links, ... }
-  pagos:    { type: Object, default: () => ({ data: [] }) }, // paginado: { data, links, ... }
-  cargos:   { type: Object, default: () => ({ data: [] }) }, // paginado: { data, links, ... }
+  cuotas:   { type: Object, default: () => ({ data: [] }) },
+  pagos:    { type: Object, default: () => ({ data: [] }) },
+  cargos:   { type: Object, default: () => ({ data: [] }) },
   total_cargos_valor: { type: Number, default: 0 },
   total_pagos_valor:  { type: Number, default: 0 },
+  clientes:   { type: Array,  default: () => [] },
+  modalidades:{ type: Array,  default: () => [] },
 })
 
 // --- HELPERS ---
@@ -50,45 +58,35 @@ const diffDays = (from, to) => {
 // =========================
 const nombreCliente = computed(() => props.cliente?.nombre ?? `ID ${props.cliente?.id}`)
 
-// Valor total del contrato dependiendo de la modalidad
-// Compatibilidad: si existe litis_valor_ganado lo usamos; si no, caemos a (monto_base_litis * porcentaje) + parte fija cuando aplique
+// ====================================================================================
+// INICIO DE LA CORRECCIÓN CLAVE: Simplificar el cálculo del valor total del contrato
+// ====================================================================================
 const valorTotalContrato = computed(() => {
   const c = props.contrato || {}
   const modalidad = String(c.modalidad || '')
 
-  if (['LITIS', 'CUOTA_MIXTA'].includes(modalidad)) {
-    const parteFija = modalidad === 'CUOTA_MIXTA' ? Number(c.monto_total || 0) : 0
-
-    // Nuevo esquema: el backend puede exponer litis_valor_ganado como total ya calculado por litis
-    if (Number(c.litis_valor_ganado || 0) > 0) {
-      return parteFija + Number(c.litis_valor_ganado || 0)
-    }
-
-    // Esquema previo: calcular a partir de monto_base_litis y porcentaje_litis
-    if (Number(c.monto_base_litis || 0) > 0) {
-      const honorariosLitis = (Number(c.monto_base_litis) * Number(c.porcentaje_litis || 0)) / 100
-      return parteFija + honorariosLitis
-    }
-
-    // Si no hay datos de litis, retornar al menos la parte fija (para MIXTA) o 0 (para LITIS)
-    return parteFija
+  // Para LITIS puro, el valor base del contrato es $0. Los honorarios son un CARGO, no parte del valor inicial.
+  if (modalidad === 'LITIS') {
+    return 0
   }
 
+  // Para CUOTA_MIXTA, el valor del contrato es ÚNICAMENTE la parte fija. El componente Litis es un CARGO.
+  // Para el resto de modalidades (CUOTAS, PAGO_UNICO), es simplemente el monto total.
   return Number(c.monto_total || 0)
 })
+// ====================================================================================
+// FIN DE LA CORRECCIÓN
+// ====================================================================================
 
-// Neto a pagar = valor total - anticipo
+
 const netoContrato = computed(() => {
   const anticipo = Number(props.contrato?.anticipo) || 0
   return Math.max(0, valorTotalContrato.value - anticipo)
 })
 
-// Totales globales del backend (evita desfases por paginación)
 const totalCargosValor = computed(() => Math.abs(Number(props.total_cargos_valor) || 0))
 const totalPagosValor  = computed(() => Math.abs(Number(props.total_pagos_valor)  || 0))
 
-// ==== NUEVO: incorporar mora acumulada visible en las listas ====
-// Evitamos doble conteo: si existen cargos con tipo INTERES_MORA, no sumamos su campo intereses_mora_acumulados (ya representan la mora)
 const totalInteresesMora = computed(() => {
   const moraCuotas = (props.cuotas?.data || []).reduce((sum, c) => sum + Number(c.intereses_mora_acumulados || 0), 0)
   const moraCargos = (props.cargos?.data || [])
@@ -97,13 +95,10 @@ const totalInteresesMora = computed(() => {
   return moraCuotas + moraCargos
 })
 
-// Total a mostrar en tarjeta de "Cargos Adicionales"
 const valorTotalCargosConMora = computed(() => totalCargosValor.value + totalInteresesMora.value)
 
-// Saldo total
 const saldo = computed(() => Math.max(0, netoContrato.value + valorTotalCargosConMora.value - totalPagosValor.value))
 
-// Totales pendientes en pestaña "Cargos" (incluye mora acumulada si aplica; no duplica INTERES_MORA)
 const totalCargosPendientes = computed(() => {
   if (!props.cargos?.data) return 0
   return props.cargos.data
@@ -175,7 +170,6 @@ const cuotaTotalAPagar = (c) => Number(c?.valor || 0) + Number(c?.intereses_mora
 const cuotaRestoConMora = (c) => Math.max(0, cuotaTotalAPagar(c) - cuotaPagado(c))
 const cargoTotalAPagar = (c) => Number(c?.monto || 0) + (String(c?.tipo || '') === 'INTERES_MORA' ? 0 : Number(c?.intereses_mora_acumulados || 0))
 
-// Mostrar concepto en Historial de pagos
 const conceptoPago = (pago) => {
   if (pago?.cuota_id) {
     const q = (props.cuotas?.data || []).find(x => x.id === pago.cuota_id)
@@ -201,7 +195,6 @@ const abrirPagoCuotaModal = (cuota) => {
   cuotaSeleccionada.value = cuota
   pagoCuotaForm.reset()
   pagoCuotaForm.cuota_id = cuota.id
-  // Prefijar total pendiente incluyendo mora acumulada
   pagoCuotaForm.valor    = cuotaRestoConMora(cuota)
   pagoCuotaForm.fecha    = today
   pagoModalAbierto.value = true
@@ -232,7 +225,6 @@ const abrirPagoCargoModal = (cargo) => {
   cargoSeleccionado.value = cargo
   pagoCargoForm.reset()
   pagoCargoForm.cargo_id = cargo.id
-  // Si es INTERES_MORA el monto ya es el interés; si no, sumar mora acumulada si existe
   pagoCargoForm.valor    = cargoTotalAPagar(cargo)
   pagoCargoForm.fecha    = today
   pagoCargoModalAbierto.value = true
@@ -249,7 +241,6 @@ const registrarPagoCargo = () => {
 // ==================
 // === MODAL GASTO ===
 const gastoModalAbierto = ref(false)
-// Se añade fecha_inicio_intereses (opcional) para permitir cálculo de mora desde una fecha definida
 const gastoForm = useForm({ monto: '', descripcion: '', fecha: today, comprobante: null, fecha_inicio_intereses: '' })
 const abrirGastoModal  = () => { gastoForm.reset(); gastoForm.fecha = today; gastoModalAbierto.value = true }
 const cerrarGastoModal = () => { gastoModalAbierto.value = false }
@@ -264,7 +255,6 @@ const registrarGasto   = () => {
 // ========================
 // === MODAL CIERRE MAN ===
 const cierreModalAbierto = ref(false)
-// Se añade fecha_inicio_intereses (opcional) para el cargo de cierre atípico
 const cierreForm = useForm({ monto: '', descripcion: '', fecha_inicio_intereses: '' })
 const abrirCierreModal  = () => { cierreForm.reset(); cierreModalAbierto.value = true }
 const cerrarCierreModal = () => { cierreModalAbierto.value = false }
@@ -278,12 +268,11 @@ const confirmarCierre   = () => {
 // ===================================
 // === MODAL: RESOLVER LITIS ===
 const resolverLitisModalAbierto = ref(false)
-// Se añade fecha_inicio_intereses (opcional) para que el cargo generado pueda iniciar mora desde esa fecha (si el backend lo soporta)
 const resolverLitisForm = useForm({ monto_base_litis: '', fecha_inicio_intereses: '' })
 
-const abrirResolverLitisModal   = () => { resolverLitisForm.reset(); resolverLitisModalAbierto.value = true }
-const cerrarResolverLitisModal  = () => { resolverLitisModalAbierto.value = false }
-const confirmarResolucionLitis  = () => {
+const abrirResolverLitisModal  = () => { resolverLitisForm.reset(); resolverLitisModalAbierto.value = true }
+const cerrarResolverLitisModal = () => { resolverLitisModalAbierto.value = false }
+const confirmarResolucionLitis = () => {
   resolverLitisForm.post(route('honorarios.contratos.resolverLitis', props.contrato.id), {
     preserveScroll: true,
     onSuccess: cerrarResolverLitisModal
@@ -293,7 +282,6 @@ const confirmarResolucionLitis  = () => {
 // ======================
 // === OTRAS ACCIONES ===
 const accionesForm = useForm({})
-// Botón inteligente: si es LITIS/MIXTA sin monto base/valor ganado -> abre modal Litis; de lo contrario, cierre
 const handleCerrarContratoClick = () => {
   const c = props.contrato
   if (['LITIS', 'CUOTA_MIXTA'].includes(c?.modalidad) && !Number(c?.monto_base_litis) && !Number(c?.litis_valor_ganado)) {
@@ -304,7 +292,7 @@ const handleCerrarContratoClick = () => {
 }
 
 // ===================
-// === UI / TABS   ===
+// === UI / TABS   ===
 const contractStatusClasses = {
   'ACTIVO':           'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300',
   'PAGOS_PENDIENTES': 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300',
@@ -323,7 +311,6 @@ onMounted(() => {
   if (tabFromUrl && ['cuotas', 'cargos', 'pagos'].includes(tabFromUrl)) pestanaActiva.value = tabFromUrl
 })
 
-// --- Paginación: preservar pestaña actual al navegar con <Pagination> ---
 const withTab = (url) => {
   if (!url) return null
   try {
@@ -338,7 +325,6 @@ const cuotasLinks = computed(() => (props.cuotas?.links || []).map(l => ({ ...l,
 const cargosLinks = computed(() => (props.cargos?.links || []).map(l => ({ ...l, url: withTab(l.url) })))
 const pagosLinks  = computed(() => (props.pagos?.links  || []).map(l => ({ ...l, url: withTab(l.url) })))
 
-// (Fallback legacy, no se usa con <Pagination> pero se mantiene por compatibilidad)
 const navegarPagina = (url) => {
   if (!url) return
   const nuevaUrl = new URL(url, window.location.origin)
@@ -347,6 +333,83 @@ const navegarPagina = (url) => {
     preserveScroll: true,
     preserveState: true,
     only: ['cuotas', 'pagos', 'cargos', 'total_cargos_valor', 'total_pagos_valor']
+  })
+}
+
+// ======================================================================
+// === MODAL DE REESTRUCTURACIÓN ===
+// ======================================================================
+const reestructurarModalAbierto = ref(false)
+const crearContratoForm = useForm({
+  cliente_id: null,
+  modalidad: 'CUOTAS',
+  inicio: new Date().toISOString().slice(0, 10),
+  monto_total: '',
+  cuotas: 12,
+  anticipo: '',
+  porcentaje_litis: '',
+  nota: '',
+  contrato_origen_id: null,
+})
+
+const clienteSearch = ref('')
+const selectedClientName = ref('')
+const isClientListOpen = ref(false)
+const clientDropdown = ref(null)
+
+const filteredClients = computed(() => {
+    if (!clienteSearch.value) return props.clientes.slice(0, 10)
+    return props.clientes.filter(c => 
+        c.nombre.toLowerCase().includes(clienteSearch.value.toLowerCase())
+    ).slice(0, 10)
+})
+
+const selectClient = (client) => {
+    crearContratoForm.cliente_id = client.id
+    selectedClientName.value = client.nombre
+    clienteSearch.value = client.nombre
+    isClientListOpen.value = false
+}
+
+watch(clienteSearch, (newVal) => {
+    if (newVal !== selectedClientName.value) {
+        crearContratoForm.cliente_id = null
+    }
+})
+
+onClickOutside(clientDropdown, () => isClientListOpen.value = false)
+
+const abrirReestructurarModal = () => {
+  crearContratoForm.defaults({
+    cliente_id: props.contrato?.cliente_id ?? null,
+    modalidad: props.contrato?.modalidad ?? 'CUOTAS',
+    inicio: new Date().toISOString().slice(0, 10),
+    monto_total: props.contrato?.monto_total ?? '',
+    cuotas: 12,
+    anticipo: props.contrato?.anticipo ?? '',
+    porcentaje_litis: props.contrato?.porcentaje_litis ?? '',
+    nota: `Reestructuración del contrato #${props.contrato?.id ?? ''}.`,
+    contrato_origen_id: props.contrato?.id ?? null,
+  })
+  crearContratoForm.reset()
+
+  const clienteOriginal = props.clientes.find(c => c.id === props.contrato.cliente_id)
+  if (clienteOriginal) {
+      clienteSearch.value = clienteOriginal.nombre
+      selectedClientName.value = clienteOriginal.nombre
+  } else {
+      clienteSearch.value = ''
+      selectedClientName.value = ''
+  }
+
+  reestructurarModalAbierto.value = true
+}
+
+const cerrarReestructurarModal = () => { reestructurarModalAbierto.value = false }
+const guardarNuevoContrato = () => {
+  crearContratoForm.post(route('honorarios.contratos.store'), {
+    preserveScroll: true,
+    onSuccess: cerrarReestructurarModal,
   })
 }
 </script>
@@ -368,6 +431,10 @@ const navegarPagina = (url) => {
         </div>
 
         <div class="flex items-center gap-2 flex-wrap">
+          <Link :href="route('honorarios.contratos.index')" class="text-sm px-3 py-1.5 rounded-md bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            Volver
+          </Link>
           <template v-if="['ACTIVO','PAGOS_PENDIENTES'].includes(props.contrato?.estado)">
             <button @click="abrirGastoModal" class="text-sm px-3 py-1.5 rounded-md bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900">
               Añadir Gasto
@@ -395,6 +462,11 @@ const navegarPagina = (url) => {
             Reabrir
           </button>
 
+          <button @click="abrirReestructurarModal"
+                  class="text-sm px-3 py-1.5 rounded-md bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-200 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900">
+            Reestructurar
+          </button>
+
           <a :href="route('honorarios.contratos.pdf.contrato', props.contrato.id)"
              target="_blank" rel="noopener"
              class="text-sm px-3 py-1.5 rounded-md bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600">
@@ -411,6 +483,36 @@ const navegarPagina = (url) => {
 
     <div class="py-8">
       <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+        
+        <div v-if="props.contratoOrigen"
+             class="bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-400 p-4 rounded-md shadow-sm">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-amber-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                        Este contrato es una reestructuración del 
+                        <Link :href="route('honorarios.contratos.show', props.contratoOrigen.id)" class="underline hover:text-amber-600">
+                            Contrato #{{ props.contratoOrigen.id }}
+                        </Link>.
+                    </p>
+                    <div class="mt-2 text-sm text-amber-700 dark:text-amber-400">
+                       <p>
+                           El contrato original tenía un estado de <strong>{{ props.contratoOrigen.estado }}</strong>
+                           con un monto de <strong>{{ fmtMoney(props.contratoOrigen.monto_total) }}</strong>
+                           en modalidad <strong>{{ props.contratoOrigen.modalidad.replace('_', ' ') }}</strong>.
+                       </p>
+                       <p v-if="props.contrato.nota" class="mt-1 italic">
+                            Nota de reestructuración: "{{ props.contrato.nota }}"
+                       </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Métricas -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
           <div class="bg-white dark:bg-gray-800 shadow-sm rounded-lg p-5">
@@ -449,14 +551,11 @@ const navegarPagina = (url) => {
                 </div>
 
                 <div class="mt-6">
-                  <!-- ========================================================== -->
-                  <!-- PESTAÑA CUOTAS - TARJETAS RESPONSIVAS                      -->
-                  <!-- ========================================================== -->
+                  <!-- PESTAÑA CUOTAS -->
                   <div v-if="pestanaActiva === 'cuotas'" class="space-y-4">
                     <div v-if="!(props.cuotas?.data || []).length" class="text-center py-12 text-gray-500 dark:text-gray-400">
                       <p>No hay cuotas definidas para este contrato.</p>
                     </div>
-
                     <div v-for="q in props.cuotas.data" :key="q.id"
                          class="border rounded-lg p-4 transition-all"
                          :class="q.estado === 'PAGADA' ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'">
@@ -471,7 +570,6 @@ const navegarPagina = (url) => {
                           </p>
                           <p class="text-sm text-gray-500">Vence: {{ fmtDate(q.fecha_vencimiento) }}</p>
                         </div>
-
                         <div class="w-full sm:w-auto grid grid-cols-2 sm:flex sm:items-center gap-4 text-right">
                           <div class="sm:pr-4 sm:border-r dark:border-gray-600">
                             <p class="text-xs text-gray-500">Valor</p>
@@ -490,7 +588,6 @@ const navegarPagina = (url) => {
                             <p class="font-bold text-lg font-mono text-indigo-600 dark:text-indigo-400">{{ fmtMoney(cuotaRestoConMora(q)) }}</p>
                           </div>
                         </div>
-
                         <div class="flex-shrink-0">
                           <button
                             v-if="props.contrato.estado !== 'CERRADO' && q.estado !== 'PAGADA' && !q.fecha_pago"
@@ -501,13 +598,10 @@ const navegarPagina = (url) => {
                         </div>
                       </div>
                     </div>
-
                     <Pagination class="mt-6" :links="cuotasLinks" />
                   </div>
 
-                  <!-- ========================================================== -->
-                  <!-- PESTAÑA CARGOS - TARJETAS (con mora acumulada)            -->
-                  <!-- ========================================================== -->
+                  <!-- PESTAÑA CARGOS -->
                   <div v-if="pestanaActiva === 'cargos'">
                     <div v-if="!(props.cargos?.data || []).length" class="text-center py-8 text-gray-500 dark:text-gray-400">
                       <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></svg>
@@ -522,8 +616,8 @@ const navegarPagina = (url) => {
                              c.estado === 'PAGADO'
                                ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-900'
                                : (String(c.tipo || '') === 'INTERES_MORA'
-                                    ? 'bg-red-50/50 dark:bg-red-900/10 border-red-200 dark:border-red-900'
-                                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700')
+                                   ? 'bg-red-50/50 dark:bg-red-900/10 border-red-200 dark:border-red-900'
+                                   : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700')
                            ]">
                         <div class="flex items-start sm:items-center gap-4 p-4 flex-col sm:flex-row">
                           <div class="flex-shrink-0">
@@ -534,11 +628,9 @@ const navegarPagina = (url) => {
                               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fill-rule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clip-rule="evenodd" /></svg>
                             </span>
                           </div>
-
                           <div class="flex-1 space-y-1 w-full">
                             <div class="flex items-center gap-3 text-sm flex-wrap">
                               <span class="font-bold text-gray-800 dark:text-gray-100">
-                                <!-- Total con mora acumulada si aplica y no es cargo de tipo INTERES_MORA -->
                                 <template v-if="String(c.tipo || '') !== 'INTERES_MORA' && Number(c.intereses_mora_acumulados || 0) > 0">
                                   {{ fmtMoney(cargoTotalAPagar(c)) }}
                                 </template>
@@ -554,21 +646,15 @@ const navegarPagina = (url) => {
                               </span>
                               <span class="text-gray-500">Aplicado el {{ fmtDate(c.fecha_aplicado) }}</span>
                             </div>
-
-                            <!-- Distinción visual y contexto para cargos de mora -->
                             <p v-if="String(c.tipo || '') === 'INTERES_MORA'" class="text-xs sm:text-sm text-red-700 dark:text-red-300 font-medium">
                               {{ textoRefMora(c) }}
                             </p>
-
-                            <!-- Desglose cuando hay mora acumulada en un cargo normal -->
                             <p v-if="String(c.tipo || '') !== 'INTERES_MORA' && Number(c.intereses_mora_acumulados || 0) > 0" class="text-xs sm:text-sm text-red-700 dark:text-red-300 font-medium">
                               (Valor original: {{ fmtMoney(c.monto) }} + {{ fmtMoney(c.intereses_mora_acumulados) }} de mora)
                             </p>
-
                             <p class="text-sm text-gray-600 dark:text-gray-400" v-text="c.descripcion"></p>
                             <a v-if="c.comprobante" :href="cargoComprobanteCreacionUrl(c)" target="_blank" class="text-xs text-indigo-600 hover:underline font-semibold">Ver comprobante de creación</a>
                           </div>
-
                           <div class="flex items-center gap-4 self-end sm:self-center">
                             <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold" :class="c.estado === 'PAGADO' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'">
                               {{ c.estado }}
@@ -580,32 +666,26 @@ const navegarPagina = (url) => {
                             </button>
                           </div>
                         </div>
-
                         <div v-if="c.estado === 'PAGADO'" class="bg-emerald-50 dark:bg-gray-700/50 border-t border-emerald-200 dark:border-emerald-800 px-4 py-3 text-sm">
                           <p class="font-semibold text-emerald-800 dark:text-emerald-300">Pagado el {{ fmtDate(c.fecha_pago_cargo) }} vía {{ c.metodo_pago_cargo }}.</p>
                           <p v-if="c.nota_pago_cargo" class="text-gray-600 dark:text-gray-400 mt-1 italic">"{{ c.nota_pago_cargo }}"</p>
                           <a v-if="c.comprobante_pago_cargo" :href="cargoComprobantePagoUrl(c)" target="_blank" class="mt-1 inline-block text-xs text-indigo-600 hover:underline font-semibold">Ver comprobante de pago</a>
                         </div>
                       </div>
-
                       <div class="mt-6 pt-4 border-t-2 border-dashed dark:border-gray-700 text-right">
                         <p class="text-sm text-gray-500">Total Cargos: <span class="font-bold text-gray-800 dark:text-gray-200">{{ fmtMoney(valorTotalCargosConMora) }}</span></p>
                         <p v-if="totalInteresesMora > 0" class="text-xs text-red-600 dark:text-red-400">(Incluye {{ fmtMoney(totalInteresesMora) }} en mora)</p>
                         <p class="text-sm text-amber-600 mt-1">Total Pendiente: <span class="font-bold">{{ fmtMoney(totalCargosPendientes) }}</span></p>
                       </div>
-
                       <Pagination class="mt-6" :links="cargosLinks" />
                     </div>
                   </div>
 
-                  <!-- ========================================================== -->
-                  <!-- PESTAÑA PAGOS - TARJETAS                                  -->
-                  <!-- ========================================================== -->
+                  <!-- PESTAÑA PAGOS -->
                   <div v-if="pestanaActiva === 'pagos'">
                     <div v-if="!(props.pagos?.data || []).length" class="text-center py-8 text-gray-500 dark:text-gray-400">
                       No se han registrado pagos.
                     </div>
-
                     <div v-else class="space-y-4">
                       <div v-for="p in [...(props.pagos.data || [])].sort((a,b)=> new Date(b.fecha) - new Date(a.fecha))" :key="p.id"
                            class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
@@ -619,20 +699,17 @@ const navegarPagina = (url) => {
                               <p class="font-medium">{{ fmtDate(p.fecha) }}</p>
                             </div>
                           </div>
-
                           <div class="text-center">
                             <span class="px-2 py-1 rounded-md text-xs font-semibold"
                                   :class="p.cargo_id ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'">
                               {{ conceptoPago(p) }}
                             </span>
                           </div>
-
                           <div class="text-right">
                             <p class="text-sm text-gray-500">Valor</p>
                             <p class="font-mono font-semibold text-gray-800 dark:text-gray-200">{{ fmtMoney(p.valor) }}</p>
                           </div>
                         </div>
-
                         <div class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
                           <div>
                             <p class="text-gray-500">Método</p>
@@ -643,16 +720,14 @@ const navegarPagina = (url) => {
                             <p class="text-gray-700 dark:text-gray-300 break-words">{{ p.nota || '—' }}</p>
                           </div>
                         </div>
-
                         <div class="mt-3">
                           <a v-if="comprobanteUrl(p)" :href="comprobanteUrl(p)" target="_blank" class="text-xs text-indigo-600 hover:underline font-semibold">Ver comprobante</a>
                           <span v-else class="text-xs text-gray-400">Sin comprobante</span>
                         </div>
                       </div>
-
                       <Pagination class="mt-6" :links="pagosLinks" />
                     </div>
-                  </div> <!-- FIN PAGOS -->
+                  </div>
                 </div>
               </div>
             </div>
@@ -677,8 +752,6 @@ const navegarPagina = (url) => {
                   <span class="text-gray-500 dark:text-gray-400">Modalidad:</span>
                   <span class="font-medium text-gray-800 dark:text-gray-200">{{ (props.contrato.modalidad || '').replace('_',' ') }}</span>
                 </div>
-
-                <!-- Campos especiales LITIS / MIXTA -->
                 <div v-if="['LITIS','CUOTA_MIXTA'].includes(props.contrato.modalidad)" class="flex justify-between">
                   <span class="text-gray-500 dark:text-gray-400">Porcentaje de Éxito:</span>
                   <span class="font-bold text-purple-600 dark:text-purple-400">{{ props.contrato.porcentaje_litis }}%</span>
@@ -695,7 +768,6 @@ const navegarPagina = (url) => {
                   <span class="text-gray-500 dark:text-gray-400">Parte Fija (Cuotas):</span>
                   <span class="font-medium text-gray-800 dark:text-gray-200">{{ fmtMoney(props.contrato.monto_total) }}</span>
                 </div>
-
                 <div class="flex justify-between items-center">
                   <span class="text-gray-500 dark:text-gray-400">Estado:</span>
                   <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold"
@@ -705,14 +777,12 @@ const navegarPagina = (url) => {
                 </div>
               </div>
             </div>
-          </div> <!-- FIN columna derecha -->
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- =================== MODALES (Modal component) =================== -->
-
-    <!-- Pago cuota -->
+    <!-- Modales -->
     <Modal :show="pagoModalAbierto" @close="cerrarPagoModal">
       <form @submit.prevent="registrarPagoCuota">
         <div class="p-6 border-b dark:border-gray-700">
@@ -758,7 +828,6 @@ const navegarPagina = (url) => {
       </form>
     </Modal>
 
-    <!-- Pago cargo -->
     <Modal :show="pagoCargoModalAbierto" @close="cerrarPagoCargoModal">
       <form @submit.prevent="registrarPagoCargo">
         <div class="p-6 border-b dark:border-gray-700">
@@ -825,7 +894,6 @@ const navegarPagina = (url) => {
       </form>
     </Modal>
 
-    <!-- Agregar gasto -->
     <Modal :show="gastoModalAbierto" @close="cerrarGastoModal">
       <form @submit.prevent="registrarGasto">
         <div class="p-6 border-b dark:border-gray-700">
@@ -852,7 +920,6 @@ const navegarPagina = (url) => {
             <input type="file" @input="gastoForm.comprobante = $event.target.files[0]" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/50 dark:file:text-blue-300 dark:hover:file:bg-blue-900"/>
             <InputError :message="gastoForm.errors.comprobante" class="mt-2" />
           </div>
-          <!-- NUEVO: Fecha de inicio de intereses (opcional) -->
           <div>
             <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Fecha de Inicio de Intereses (Opcional)</label>
             <input v-model="gastoForm.fecha_inicio_intereses" type="date" class="w-full rounded-md border-gray-300 dark:bg-gray-900 dark:border-gray-700 shadow-sm"/>
@@ -867,7 +934,6 @@ const navegarPagina = (url) => {
       </form>
     </Modal>
 
-    <!-- Cierre manual -->
     <Modal :show="cierreModalAbierto" @close="cerrarCierreModal">
       <form @submit.prevent="confirmarCierre">
         <div class="p-6 border-b dark:border-gray-700">
@@ -887,7 +953,6 @@ const navegarPagina = (url) => {
             <input v-model="cierreForm.descripcion" type="text" placeholder="Ej: Cláusula penal por terminación" class="w-full rounded-md border-gray-300 dark:bg-gray-900 dark:border-gray-700 shadow-sm"/>
             <InputError :message="cierreForm.errors.descripcion" class="mt-2" />
           </div>
-          <!-- NUEVO: Fecha de inicio de intereses (opcional) -->
           <div>
             <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Fecha de Inicio de Intereses (Opcional)</label>
             <input v-model="cierreForm.fecha_inicio_intereses" type="date" class="w-full rounded-md border-gray-300 dark:bg-gray-900 dark:border-gray-700 shadow-sm"/>
@@ -902,7 +967,6 @@ const navegarPagina = (url) => {
       </form>
     </Modal>
 
-    <!-- Resolver Litis -->
     <Modal :show="resolverLitisModalAbierto" @close="cerrarResolverLitisModal">
       <form @submit.prevent="confirmarResolucionLitis">
         <div class="p-6 border-b dark:border-gray-700">
@@ -917,7 +981,6 @@ const navegarPagina = (url) => {
             <input v-model.number="resolverLitisForm.monto_base_litis" type="number" step="0.01" min="0" required placeholder="Ej: 15000000" class="w-full rounded-md border-gray-300 dark:bg-gray-900 dark:border-gray-700 shadow-sm"/>
             <InputError :message="resolverLitisForm.errors.monto_base_litis" class="mt-2" />
           </div>
-          <!-- NUEVO: Fecha de inicio de intereses (opcional) para el cargo generado -->
           <div>
             <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Fecha de Inicio de Intereses (Opcional)</label>
             <input v-model="resolverLitisForm.fecha_inicio_intereses" type="date" 
@@ -932,5 +995,94 @@ const navegarPagina = (url) => {
         </div>
       </form>
     </Modal>
+
+    <!-- Modal: Reestructurar -->
+    <Modal :show="reestructurarModalAbierto" @close="cerrarReestructurarModal">
+      <form @submit.prevent="guardarNuevoContrato">
+        <div class="p-6 border-b dark:border-gray-700">
+          <h4 class="font-semibold text-lg text-gray-800 dark:text-gray-100">
+            Reestructurar Contrato #{{ props.contrato.id }}
+          </h4>
+        </div>
+
+        <div class="p-6 space-y-6">
+          <!-- CORRECCIÓN: Se reemplaza el input de texto por el buscador interactivo completo -->
+          <div class="relative" ref="clientDropdown">
+              <InputLabel for="cliente_search" value="Cliente" />
+              <TextInput
+                  id="cliente_search"
+                  type="text"
+                  v-model="clienteSearch"
+                  disabled
+                  class="mt-1 block w-full disabled:bg-gray-100 dark:disabled:bg-gray-800/50"
+              />
+              <InputError class="mt-2" :message="crearContratoForm.errors.cliente_id" />
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <InputLabel for="modalidad_re" value="Modalidad del Contrato" />
+              <select
+                v-model="crearContratoForm.modalidad"
+                id="modalidad_re"
+                class="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm dark:bg-gray-900 dark:border-gray-700"
+              >
+                <option v-for="mod in props.modalidades" :key="mod" :value="mod">{{ mod.replace('_',' ') }}</option>
+              </select>
+              <InputError class="mt-2" :message="crearContratoForm.errors.modalidad" />
+            </div>
+            <div>
+              <InputLabel for="inicio" value="Fecha de Inicio" />
+              <TextInput id="inicio" type="date" v-model="crearContratoForm.inicio" class="mt-1 block w-full" />
+              <InputError class="mt-2" :message="crearContratoForm.errors.inicio" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <template v-if="['CUOTAS','PAGO_UNICO','CUOTA_MIXTA'].includes(crearContratoForm.modalidad)">
+              <div>
+                <InputLabel for="monto_total" value="Monto Total (Parte Fija)" />
+                <TextInput id="monto_total" type="number" step="0.01" v-model="crearContratoForm.monto_total" class="mt-1 block w-full" placeholder="Ej: 5000000" />
+                <InputError class="mt-2" :message="crearContratoForm.errors.monto_total" />
+              </div>
+              <div>
+                <InputLabel for="cuotas" value="Número de Cuotas" />
+                <TextInput id="cuotas" type="number" v-model="crearContratoForm.cuotas" class="mt-1 block w-full" placeholder="Ej: 12" />
+                <InputError class="mt-2" :message="crearContratoForm.errors.cuotas" />
+              </div>
+              <div>
+                <InputLabel for="anticipo" value="Anticipo (Opcional)" />
+                <TextInput id="anticipo" type="number" step="0.01" v-model="crearContratoForm.anticipo" class="mt-1 block w-full" placeholder="Ej: 1000000" />
+                <InputError class="mt-2" :message="crearContratoForm.errors.anticipo" />
+              </div>
+            </template>
+
+            <template v-if="['LITIS','CUOTA_MIXTA'].includes(crearContratoForm.modalidad)">
+              <div>
+                <InputLabel for="porcentaje_litis" value="Porcentaje de Éxito (%)" />
+                <TextInput id="porcentaje_litis" type="number" step="0.01" v-model="crearContratoForm.porcentaje_litis" class="mt-1 block w-full" placeholder="Ej: 20" />
+                <InputError class="mt-2" :message="crearContratoForm.errors.porcentaje_litis" />
+              </div>
+            </template>
+          </div>
+
+          <div>
+            <InputLabel for="nota" value="Nota (Opcional)" />
+            <Textarea id="nota" v-model="crearContratoForm.nota" rows="3" class="mt-1 block w-full" />
+            <InputError class="mt-2" :message="crearContratoForm.errors.nota" />
+          </div>
+
+          <input type="hidden" :value="crearContratoForm.contrato_origen_id">
+        </div>
+
+        <div class="px-6 py-4 bg-gray-50 dark:bg-gray-900/50 flex items-center justify-end gap-3 rounded-b-xl">
+          <SecondaryButton type="button" @click="cerrarReestructurarModal">Cancelar</SecondaryButton>
+          <PrimaryButton type="submit" :disabled="crearContratoForm.processing">
+            {{ crearContratoForm.processing ? 'Guardando...' : 'Guardar Contrato' }}
+          </PrimaryButton>
+        </div>
+      </form>
+    </Modal>
   </AuthenticatedLayout>
 </template>
+

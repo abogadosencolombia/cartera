@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers\Gestion\Honorarios;
 
 use App\Http\Controllers\Controller;
@@ -18,16 +19,14 @@ class ContratosController extends Controller
         $estado = trim((string)$request->input('estado',''));
         $stats = ['activeValue'=>0,'activeCount'=>0,'closedCount'=>0];
 
-        // --- INICIO DE LA MODIFICACIÓN ---
         $contratosQuery = DB::table('contratos')
+            ->where('contratos.estado', '!=', 'REESTRUCTURADO')
             ->join('personas', 'contratos.cliente_id', '=', 'personas.id')
             ->select(
                 'contratos.*',
                 'personas.nombre_completo as persona_nombre',
-                // Subconsulta para obtener el total pagado por cada contrato
                 DB::raw('(SELECT SUM(valor) FROM contrato_pagos WHERE contrato_pagos.contrato_id = contratos.id) as total_pagado')
             );
-        // --- FIN DE LA MODIFICACIÓN ---
 
         if ($q !== '') {
             $contratosQuery->where(function ($w) use ($q) {
@@ -39,16 +38,14 @@ class ContratosController extends Controller
             $contratosQuery->where('contratos.estado',$estado);
         }
         
-        // Ahora paginamos la consulta ya construida
         $contratos = $contratosQuery->orderByDesc('contratos.created_at')->paginate(10);
 
-        // Los stats se calculan igual que antes
         try {
             if (Schema::hasTable('contratos')) {
-                $active = DB::table('contratos')->whereIn('estado',['ACTIVO','EN_PROCESO','VIGENTE']);
-                $stats['activeCount']  = (clone $active)->count();
-                $stats['activeValue']  = Schema::hasColumn('contratos','monto_total') ? (clone $active)->sum('monto_total') : 0;
-                $stats['closedCount']  = Schema::hasColumn('contratos','estado') ? DB::table('contratos')->where('estado','CERRADO')->count() : 0;
+                $active = DB::table('contratos')->whereIn('estado',['ACTIVO', 'PAGOS_PENDIENTES', 'EN_MORA']);
+                $stats['activeCount']   = (clone $active)->count();
+                $stats['activeValue']   = Schema::hasColumn('contratos','monto_total') ? (clone $active)->sum('monto_total') : 0;
+                $stats['closedCount']   = Schema::hasColumn('contratos','estado') ? DB::table('contratos')->where('estado','CERRADO')->count() : 0;
             }
         } catch (\Throwable $e) {}
 
@@ -59,8 +56,16 @@ class ContratosController extends Controller
         ]);
     }
 
-    public function create()
+    public function create(Request $request)
     {
+        $plantilla = null;
+        if ($request->has('from')) {
+            $contratoOrigen = DB::table('contratos')->find($request->input('from'));
+            if ($contratoOrigen) {
+                $plantilla = $contratoOrigen;
+            }
+        }
+
         $personas = [];
         $modalidades = ['CUOTAS','PAGO_UNICO','LITIS','CUOTA_MIXTA'];
 
@@ -77,23 +82,21 @@ class ContratosController extends Controller
         return Inertia::render('Gestion/Honorarios/Contratos/Create', [
             'clientes'    => $personas,
             'modalidades' => $modalidades,
+            'plantilla'   => $plantilla,
         ]);
     }
 
     public function store(Request $request)
     {
-        // --- INICIO DE LA MODIFICACIÓN ---
-
-        // 1. Reglas de validación base
         $rules = [
             'cliente_id' => ['required'],
             'modalidad'  => ['required', 'in:CUOTAS,PAGO_UNICO,LITIS,CUOTA_MIXTA'],
             'inicio'     => ['required', 'date'],
             'anticipo'   => ['nullable', 'numeric', 'min:0'],
             'nota'       => ['nullable', 'string'],
+            'contrato_origen_id' => ['nullable', 'integer', 'exists:contratos,id'],
         ];
 
-        // 2. Reglas de validación condicionales según la modalidad
         $modalidad = $request->input('modalidad');
 
         if ($modalidad === 'CUOTAS' || $modalidad === 'PAGO_UNICO' || $modalidad === 'CUOTA_MIXTA') {
@@ -108,14 +111,14 @@ class ContratosController extends Controller
         $v = Validator::make($request->all(), $rules, [], ['cliente_id' => 'cliente']);
         $v->validate();
 
-        // 3. Obtenemos los datos del request
-        $cliente_id      = $request->input('cliente_id');
-        $monto_total     = round((float)$request->input('monto_total', 0), 2);
-        $cuotas          = (int)$request->input('cuotas', 1);
-        $anticipo        = round((float)($request->input('anticipo') ?? 0), 2);
-        $nota            = (string)($request->input('nota') ?? '');
-        $inicio          = (string)$request->input('inicio');
-        $porcentaje_litis = $request->input('porcentaje_litis'); // Se guarda si existe
+        $cliente_id         = $request->input('cliente_id');
+        $monto_total        = round((float)$request->input('monto_total', 0), 2);
+        $cuotas             = (int)$request->input('cuotas', 1);
+        $anticipo           = round((float)($request->input('anticipo') ?? 0), 2);
+        $nota               = (string)($request->input('nota') ?? '');
+        $inicio             = (string)$request->input('inicio');
+        $porcentaje_litis   = $request->input('porcentaje_litis');
+        $contrato_origen_id = $request->input('contrato_origen_id');
 
         if ($anticipo > $monto_total && in_array($modalidad, ['CUOTAS', 'PAGO_UNICO', 'CUOTA_MIXTA'])) {
             return back()->withErrors(['anticipo' => 'El anticipo no puede superar el monto total.'])->withInput();
@@ -123,30 +126,34 @@ class ContratosController extends Controller
 
         $idContrato = null;
 
-         DB::transaction(function () use (&$idContrato, $cliente_id, $monto_total, $cuotas, $modalidad, $inicio, $anticipo, $nota, $porcentaje_litis) {
+        DB::transaction(function () use (&$idContrato, $cliente_id, $monto_total, $cuotas, $modalidad, $inicio, $anticipo, $nota, $porcentaje_litis, $contrato_origen_id) {
             
-            // 4. Insertamos el contrato con los nuevos campos
+            if ($contrato_origen_id) {
+                DB::table('contratos')->where('id', $contrato_origen_id)->update([
+                    'estado' => 'REESTRUCTURADO',
+                    'updated_at' => now(),
+                ]);
+            }
+
             $idContrato = DB::table('contratos')->insertGetId([
-                'cliente_id'        => $cliente_id,
-                'monto_total'       => $monto_total,
-                'anticipo'          => $anticipo,
-                'porcentaje_litis'  => $porcentaje_litis, // Nuevo campo
-                'monto_base_litis'  => null,             // Siempre nulo al inicio
-                'modalidad'         => $modalidad,
-                'estado'            => 'ACTIVO',
-                'inicio'            => $inicio,
-                'nota'              => $nota,
-                'created_at'        => now(),
-                'updated_at'        => now(),
+                'cliente_id'          => $cliente_id,
+                'monto_total'         => $monto_total,
+                'anticipo'            => $anticipo,
+                'porcentaje_litis'    => $porcentaje_litis,
+                'monto_base_litis'    => null,
+                'modalidad'           => $modalidad,
+                'estado'              => 'ACTIVO',
+                'inicio'              => $inicio,
+                'nota'                => $nota,
+                'contrato_origen_id'  => $contrato_origen_id,
+                'created_at'          => now(),
+                'updated_at'          => now(),
             ]);
 
-            // 5. Lógica para generar cuotas según la modalidad
             if ($modalidad === 'LITIS') {
-                // Para LITIS, no se generan cuotas al inicio. Se hará al final del proceso.
                 return;
             }
 
-            // Para las otras modalidades, se calcula el neto a financiar
             $neto = max(0, $monto_total - $anticipo);
             
             if ($modalidad === 'PAGO_UNICO') {
@@ -160,7 +167,6 @@ class ContratosController extends Controller
                     'updated_at'        => now(),
                 ]);
             } elseif ($modalidad === 'CUOTAS' || $modalidad === 'CUOTA_MIXTA') {
-                // La lógica para CUOTAS y la parte fija de CUOTA_MIXTA es la misma
                 if ($cuotas < 1) $cuotas = 1;
                 $netoCents  = (int) round($neto * 100);
                 $baseCents  = intdiv($netoCents, $cuotas);
@@ -184,29 +190,48 @@ class ContratosController extends Controller
             }
         });
 
-        // --- FIN DE LA MODIFICACIÓN ---
-
         return redirect()->route('honorarios.contratos.show', $idContrato)->with('success', 'Contrato creado.');
     }
 
     public function show($id)
     {
         if (!Schema::hasTable('contratos')) abort(404);
-        $contrato = DB::table('contratos')->where('id',$id)->first();
+        
+        $contrato = DB::table('contratos')->find($id);
         if (!$contrato) abort(404);
 
+        $contratoOrigen = null;
+        if ($contrato->contrato_origen_id) {
+            $contratoOrigen = DB::table('contratos')->find($contrato->contrato_origen_id);
+        }
+        
         $cliente = null;
         if (Schema::hasTable('personas')) {
             $cliente = DB::table('personas')->select('id','nombre_completo as nombre')->where('id',$contrato->cliente_id)->first();
         }
 
-        // --- INICIO DE LA MODIFICACIÓN ---
+        // ====================================================================================
+        // INICIO DE LA MODIFICACIÓN: Cargar clientes y modalidades para el modal
+        // ====================================================================================
+        $clientes = [];
+        $modalidades = ['CUOTAS','PAGO_UNICO','LITIS','CUOTA_MIXTA'];
 
-        // 1. Calculamos los totales GLOBALES para las tarjetas de métricas.
+        try {
+            if (Schema::hasTable('personas')) {
+                $clientes = DB::table('personas')
+                                ->select('id','nombre_completo as nombre')
+                                ->orderBy('nombre_completo')
+                                ->limit(500)
+                                ->get();
+            }
+        } catch (\Throwable $e) {}
+        // ====================================================================================
+        // FIN DE LA MODIFICACIÓN
+        // ====================================================================================
+
         $total_cargos_valor = DB::table('contrato_cargos')->where('contrato_id', $id)->sum('monto');
         $total_pagos_valor  = DB::table('contrato_pagos')->where('contrato_id', $id)->sum('valor');
 
-        // 2. Obtenemos las listas PAGINADAS para las pestañas.
         $cuotas = DB::table('contrato_cuotas')
             ->where('contrato_id', $id)
             ->orderBy('numero')
@@ -224,12 +249,20 @@ class ContratosController extends Controller
             ->orderByDesc('fecha')->orderByDesc('id')
             ->paginate(15, ['*'], 'pagosPage');
         
-        // --- FIN DE LA MODIFICACIÓN ---
-
         return Inertia::render('Gestion/Honorarios/Contratos/Show', compact(
-            'contrato', 'cliente', 'cuotas', 'pagos', 'cargos',
-            'total_cargos_valor', 'total_pagos_valor' // 3. Enviamos los totales a la vista.
+            'contrato', 'contratoOrigen', 'cliente', 'cuotas', 'pagos', 'cargos',
+            'total_cargos_valor', 'total_pagos_valor', 'clientes', 'modalidades' // <-- Añadir 'clientes' y 'modalidades'
         ));
+    }
+
+    public function reestructurar($id)
+    {
+        $contrato = DB::table('contratos')->find($id);
+        if (!$contrato) {
+            return redirect()->route('honorarios.contratos.index')->with('error', 'Contrato no encontrado.');
+        }
+
+        return redirect()->route('honorarios.contratos.create', ['from' => $id]);
     }
 
     public function pagar($id, Request $request)
@@ -307,13 +340,11 @@ class ContratosController extends Controller
         $honorarios = round(($monto_base * $porcentaje) / 100, 2);
 
         DB::transaction(function () use ($id, $contrato, $monto_base, $honorarios) {
-            // 1. Actualizamos el contrato con el monto base
             DB::table('contratos')->where('id', $id)->update([
                 'monto_base_litis' => $monto_base,
                 'updated_at'       => now(),
             ]);
 
-            // 2. Creamos un cargo final por los honorarios calculados
             DB::table('contrato_cargos')->insert([
                 'contrato_id'    => $id,
                 'tipo'           => 'HONORARIO_LITIS',
@@ -354,9 +385,6 @@ class ContratosController extends Controller
 
         $path = $request->file('comprobante')->store("comprobantes/cargos_pagos/{$id}", 'public');
 
-        // --- BLOQUE MODIFICADO ---
-        // Se utiliza una transacción para garantizar la integridad de los datos.
-        // Se obtiene el ID del pago creado y se guarda en la tabla de cargos.
         DB::transaction(function () use ($id, $cargo, $request, $valor, $path) {
             $pagoId = DB::table('contrato_pagos')->insertGetId([
                 'contrato_id' => $id,
@@ -374,13 +402,12 @@ class ContratosController extends Controller
             DB::table('contrato_cargos')->where('id',$cargo->id)->update([
                 'estado'     => 'PAGADO',
                 'fecha_pago' => $request->input('fecha'),
-                'pago_id'    => $pagoId, // Se guarda la referencia al pago.
+                'pago_id'    => $pagoId,
                 'updated_at' => now(),
             ]);
 
             $this->checkAndCloseContract($id);
         });
-        // --- FIN DEL BLOQUE MODIFICADO ---
 
         return back()->with('success','Pago de cargo registrado.');
     }
@@ -388,11 +415,11 @@ class ContratosController extends Controller
     public function agregarCargo($id, Request $request)
     {
         $v = Validator::make($request->all(), [
-            'monto'       => ['required','numeric','min:0.01'],
-            'descripcion' => ['required','string','max:255'],
-            'fecha'       => ['required','date'],
-            'comprobante' => ['nullable','file','mimes:pdf,jpg,jpeg,png,webp','max:5120'],
-            'fecha_inicio_intereses' => ['nullable', 'date', 'after_or_equal:fecha'], // <-- Nueva validación
+            'monto'                  => ['required','numeric','min:0.01'],
+            'descripcion'            => ['required','string','max:255'],
+            'fecha'                  => ['required','date'],
+            'comprobante'            => ['nullable','file','mimes:pdf,jpg,jpeg,png,webp','max:5120'],
+            'fecha_inicio_intereses' => ['nullable', 'date', 'after_or_equal:fecha'],
         ]);
         $v->validate();
 
@@ -405,16 +432,16 @@ class ContratosController extends Controller
         }
 
         DB::table('contrato_cargos')->insert([
-            'contrato_id'    => $id,
-            'tipo'           => 'GASTO_REEMBOLSABLE',
-            'monto'          => $request->input('monto'),
-            'estado'         => 'PENDIENTE',
-            'descripcion'    => $request->input('descripcion'),
-            'comprobante'    => $path,
-            'fecha_aplicado' => $request->input('fecha'),
-            'fecha_inicio_intereses' => $request->input('fecha_inicio_intereses'), // <-- Se guarda el nuevo campo
-            'created_at'     => now(),
-            'updated_at'     => now(),
+            'contrato_id'            => $id,
+            'tipo'                   => 'GASTO_REEMBOLSABLE',
+            'monto'                  => $request->input('monto'),
+            'estado'                 => 'PENDIENTE',
+            'descripcion'            => $request->input('descripcion'),
+            'comprobante'            => $path,
+            'fecha_aplicado'         => $request->input('fecha'),
+            'fecha_inicio_intereses' => $request->input('fecha_inicio_intereses'),
+            'created_at'             => now(),
+            'updated_at'             => now(),
         ]);
 
         return back()->with('success','Gasto reembolsable añadido.');
@@ -429,9 +456,9 @@ class ContratosController extends Controller
     public function cerrar($id, Request $request)
     {
         $v = Validator::make($request->all(), [
-            'monto'       => ['nullable','numeric','min:0'],
-            'descripcion' => ['nullable','string','max:255'],
-            'fecha_inicio_intereses' => ['nullable', 'date'], // <-- Nueva validación
+            'monto'                  => ['nullable','numeric','min:0'],
+            'descripcion'            => ['nullable','string','max:255'],
+            'fecha_inicio_intereses' => ['nullable', 'date'],
         ]);
         $v->validate();
 
@@ -441,15 +468,15 @@ class ContratosController extends Controller
 
             if (!empty($monto) && $monto > 0) {
                 DB::table('contrato_cargos')->insert([
-                    'contrato_id'    => $id,
-                    'tipo'           => 'CIERRE_ATIPICO',
-                    'monto'          => $monto,
-                    'estado'         => 'PENDIENTE',
-                    'descripcion'    => $descripcion ?: 'Cargo por cierre manual.',
-                    'fecha_aplicado' => now()->toDateString(),
-                    'fecha_inicio_intereses' => $request->input('fecha_inicio_intereses'), // <-- Se guarda el nuevo campo
-                    'created_at'     => now(),
-                    'updated_at'     => now(),
+                    'contrato_id'            => $id,
+                    'tipo'                   => 'CIERRE_ATIPICO',
+                    'monto'                  => $monto,
+                    'estado'                 => 'PENDIENTE',
+                    'descripcion'            => $descripcion ?: 'Cargo por cierre manual.',
+                    'fecha_aplicado'         => now()->toDateString(),
+                    'fecha_inicio_intereses' => $request->input('fecha_inicio_intereses'),
+                    'created_at'             => now(),
+                    'updated_at'             => now(),
                 ]);
             }
 

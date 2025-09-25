@@ -19,6 +19,8 @@ class ProcesoRadicado extends Model
         'ubicacion_drive','correos_juzgado','observaciones','created_by',
         'abogado_id','responsable_revision_id','juzgado_id','tipo_proceso_id',
         'demandante_id','demandado_id',
+        // --- CAMPOS AÑADIDOS ---
+        'estado', 'nota_cierre',
     ];
 
     protected $casts = [

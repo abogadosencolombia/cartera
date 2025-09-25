@@ -11,14 +11,19 @@ class SubtiposProcesoSeeder extends Seeder
     public function run(): void
     {
         // Asegurar tipos base presentes
+        //uwu
         $tipoId = fn(string $n) => TipoProceso::firstOrCreate(['nombre' => $n])->id;
 
         $map = [
-            'EJECUTIVO' => ['HIPOTECARIO','PRENDARIO','SINGULAR','PAGO DIRECTO','GARANTIA REAL','MUEBLE'],
-            'INSOLVENCIA' => ['INSOLVENCIA'],
+            'EJECUTIVO' => ['HIPOTECARIO', 'MIXTO', 'PRENDARIO', 'SINGULAR', 'GARANTIA REAL'],
+            'INSOLVENCIA ECONOMICA' => ['PERSONA NATURAL'],
             'LABORAL' => ['LABORAL'],
-            'CIVIL' => ['DIVISORIO','CURADURIA','MIXTO'],
-            'SUCESIÓN' => ['SUCESIÓN'],
+            'RESTITUCION' => ['INMUEBLE'],
+            'PAGO DIRECTO' => ['PAGO DIRECTO'],
+            'REGIMEN DE INSOLVENCIA' => ['PERSONA JURIDICA', 'PERSONA NATURAL COMERCIANTE'],
+            'PROCESO VERBAL' => ['VERBAL'],
+            'PERSONAL' => ['PERSONAL'],
+            'CURADURIA' => ['CURADURIA'],
             // Puedes añadir más mapeos aquí cuando lo requieras
         ];
 

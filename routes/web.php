@@ -56,7 +56,6 @@ use App\Http\Controllers\ProcesoRadicadoController;
 use App\Models\ProcesoRadicado;
 use App\Http\Controllers\DocumentoProcesoController;
 
-
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -157,15 +156,22 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // --- Documentos para Radicados ---
     Route::post('procesos/{proceso}/documentos', [DocumentoProcesoController::class, 'store'])->name('procesos.documentos.store');
     Route::delete('procesos/{proceso}/documentos/{documento}', [DocumentoProcesoController::class, 'destroy'])->name('procesos.documentos.destroy');
+    Route::patch('/procesos/{proceso}/close', [ProcesoRadicadoController::class, 'close'])->name('procesos.close');
+    Route::patch('/procesos/{proceso}/reopen', [ProcesoRadicadoController::class, 'reopen'])->name('procesos.reopen'); // <-- AÑADE ESTA LÍNEA
 
+    // ...
 
     // =================================================================
     // ===== RUTAS DE BÚSQUEDA ASÍNCRONA (CORREGIDAS Y UNIFICADAS) =====
     // =================================================================
-    Route::get('/search/usuarios',       [DirectorySearchController::class, 'usuariosAbogadosYGestores'])->name('search.usuarios');
-    Route::get('/search/personas',       [DirectorySearchController::class, 'personas'])->name('search.personas');
-    Route::get('/search/tipos-proceso', [DirectorySearchController::class, 'tiposProceso'])->name('search.tipos-proceso');
-    Route::get('/juzgados/search',       JuzgadoSearchController::class)->name('juzgados.search');
+    Route::get('/search/users', [DirectorySearchController::class, 'usuariosAbogadosYGestores'])->name('users.search');
+    Route::get('/search/cooperativas', [DirectorySearchController::class, 'cooperativas'])->name('cooperativas.search');
+    Route::get('/search/personas', [DirectorySearchController::class, 'personas'])->name('personas.search');
+    Route::get('/juzgados/search', JuzgadoSearchController::class)->name('juzgados.search');
+    // ===== INICIO DE LA CORRECCIÓN =====
+    // Se añade la ruta que faltaba para buscar tipos de proceso.
+    Route::get('/search/tipos-proceso', [DirectorySearchController::class, 'tiposProceso'])->name('tipos-proceso.search');
+    // ===== FIN DE LA CORRECCIÓN =====
 
 
     // --- RUTAS PARA GESTORES Y ABOGADOS (Y ADMINS) ---
@@ -195,6 +201,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/', [ContratosController::class, 'index'])->name('index');
             Route::get('/crear', [ContratosController::class, 'create'])->name('create');
             Route::post('/', [ContratosController::class, 'store'])->name('store');
+            
+            // ===== INICIO DE LA MODIFICACIÓN =====
+            // Se añaden las nuevas rutas para reestructurar y ver el archivo.
+            // Se colocan antes de las rutas dinámicas con {id} para que funcionen correctamente.
+            Route::get('/{id}/reestructurar', [ContratosController::class, 'reestructurar'])->name('reestructurar');
+            Route::get('/archivado/{id}', [ContratosController::class, 'showArchivado'])->name('showArchivado');
+            // ===== FIN DE LA MODIFICACIÓN =====
+
             Route::get('/pagos/{pago_id}/comprobante', [ContratosController::class, 'verComprobante'])->name('pagos.verComprobante');
             Route::get('/cargos/{cargo_id}/comprobante', [ContratosController::class, 'verCargoComprobante'])->name('cargos.verComprobante');
             Route::get('/{id}', [ContratosController::class, 'show'])->name('show');
@@ -258,6 +272,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 // Radicados
 Route::model('proceso', ProcesoRadicado::class);
+Route::patch('/procesos/{proceso}/close', [ProcesoRadicadoController::class, 'close'])->name('procesos.close');
+
 
 // Ruta de descarga de documentos (requiere autenticación)
 Route::get('documentos-proceso/{documento}', [DocumentoProcesoController::class, 'show'])
