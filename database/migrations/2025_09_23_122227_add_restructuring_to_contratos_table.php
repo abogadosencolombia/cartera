@@ -15,14 +15,16 @@ return new class extends Migration
     public function up()
     {
         // Añade una nueva columna para registrar el origen de la reestructuración.
-        // Esto crea un enlace entre el nuevo contrato y el antiguo.
         Schema::table('contratos', function (Blueprint $table) {
             $table->foreignId('contrato_origen_id')->nullable()->constrained('contratos')->nullOnDelete()->after('id');
         });
 
-        // Modifica la columna 'estado' para incluir el nuevo estado 'REESTRUCTURADO'.
-        // Es importante listar todos los estados existentes más el nuevo.
-        DB::statement("ALTER TABLE contratos MODIFY COLUMN estado ENUM('ACTIVO', 'PAGOS_PENDIENTES', 'EN_MORA', 'REESTRUCTURADO', 'CERRADO') NOT NULL DEFAULT 'ACTIVO'");
+        // Modifica el CHECK constraint para incluir 'REESTRUCTURADO'
+        // Primero eliminar el constraint existente
+        DB::statement('ALTER TABLE contratos DROP CONSTRAINT IF EXISTS contratos_estado_check');
+        
+        // Luego agregar el nuevo constraint con el valor adicional
+        DB::statement("ALTER TABLE contratos ADD CONSTRAINT contratos_estado_check CHECK (estado IN ('ACTIVO', 'PAGOS_PENDIENTES', 'EN_MORA', 'REESTRUCTURADO', 'CERRADO'))");
     }
 
     /**
@@ -37,8 +39,8 @@ return new class extends Migration
             $table->dropColumn('contrato_origen_id');
         });
 
-        // Revierte la columna 'estado' a su definición original sin 'REESTRUCTURADO'.
-        DB::statement("ALTER TABLE contratos MODIFY COLUMN estado ENUM('ACTIVO', 'PAGOS_PENDIENTES', 'EN_MORA', 'CERRADO') NOT NULL DEFAULT 'ACTIVO'");
+        // Revertir el constraint sin 'REESTRUCTURADO'
+        DB::statement('ALTER TABLE contratos DROP CONSTRAINT IF EXISTS contratos_estado_check');
+        DB::statement("ALTER TABLE contratos ADD CONSTRAINT contratos_estado_check CHECK (estado IN ('ACTIVO', 'PAGOS_PENDIENTES', 'EN_MORA', 'CERRADO'))");
     }
 };
-

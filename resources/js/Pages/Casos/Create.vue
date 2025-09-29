@@ -13,11 +13,12 @@ import axios from 'axios';
 // --- DEFINICIÓN DE PROPS ---
 const props = defineProps({
     casoAClonar: { type: Object, default: null },
-    subtipos_proceso: { type: Array, default: () => [] },
+    // ===== Se recibe una estructura anidada de datos =====
+    tiposYSubtipos: { type: Array, default: () => [] },
     etapas_procesales: { type: Array, default: () => [] },
 });
 
-// --- LÓGICA REUTILIZABLE PARA BÚSQUEDA ASÍNCRONA ---
+// --- LÓGICA DE BÚSQUEDA ASÍNCRONA (Sin cambios) ---
 const useDebouncedSearch = (routeName, mapResult = (item) => item) => {
     const options = ref([]);
     const message = ref('Escribe para buscar...');
@@ -78,7 +79,7 @@ const mapPersonas = (item) => {
     return { id: item.id, nombre_completo: item.label || item.nombre_completo || 'Dato no válido', numero_documento: 'N/A' };
 };
 
-// --- CONFIGURACIÓN DE TODOS LOS SELECTORES CON BÚSQUEDA ---
+// --- CONFIGURACIÓN DE SELECTORES ---
 const { options: cooperativasOptions, onSearch: searchCooperativas, message: cooperativasMessage } = useDebouncedSearch('cooperativas.search', mapGeneric);
 const { options: abogadosOptions, onSearch: searchAbogados, message: abogadosMessage } = useDebouncedSearch('users.search', mapUser);
 const { options: juzgadosOptions, onSearch: searchJuzgados, message: juzgadosMessage } = useDebouncedSearch('juzgados.search', mapGeneric);
@@ -93,7 +94,7 @@ const form = useForm({
     codeudor2_id: props.casoAClonar?.codeudor2_id || null,
     juzgado_id: props.casoAClonar?.juzgado_id || null,
     referencia_credito: props.casoAClonar?.referencia_credito || '',
-    tipo_proceso: props.casoAClonar?.tipo_proceso || 'ejecutivo singular',
+    tipo_proceso: props.casoAClonar?.tipo_proceso || (props.tiposYSubtipos.length > 0 ? props.tiposYSubtipos[0].nombre : ''),
     estado_proceso: 'prejurídico',
     tipo_garantia_asociada: props.casoAClonar?.tipo_garantia_asociada || 'codeudor',
     fecha_apertura: new Date().toISOString().slice(0, 10),
@@ -107,7 +108,26 @@ const form = useForm({
     etapa_procesal: props.casoAClonar?.etapa_procesal || '',
 });
 
-// --- VARIABLES DE AYUDA PARA MOSTRAR NOMBRES EN V-SELECT ---
+// --- LÓGICA PARA SELECTORES EN CASCADA ---
+const tiposProcesoOptions = computed(() => props.tiposYSubtipos.map(tipo => tipo.nombre));
+
+const subtiposProcesoOptions = computed(() => {
+    if (!form.tipo_proceso) return [];
+    
+    const tipoSeleccionado = props.tiposYSubtipos.find(t => t.nombre === form.tipo_proceso);
+    
+    return tipoSeleccionado && tipoSeleccionado.subtipos 
+        ? tipoSeleccionado.subtipos.map(s => s.nombre) 
+        : [];
+});
+
+watch(() => form.tipo_proceso, (newTipo, oldTipo) => {
+    if (newTipo !== oldTipo) {
+        form.subtipo_proceso = '';
+    }
+});
+
+// --- VARIABLES DE AYUDA PARA V-SELECT ---
 const selectedCooperativa = ref(null);
 const selectedAbogado = ref(null);
 const selectedDeudor = ref(null);
@@ -115,7 +135,7 @@ const selectedCodeudor1 = ref(null);
 const selectedCodeudor2 = ref(null);
 const selectedJuzgado = ref(null);
 
-// --- SINCRONIZACIÓN: Cuando cambia el objeto seleccionado, actualiza el ID en el formulario ---
+// --- SINCRONIZACIÓN DE V-SELECT ---
 watch(selectedCooperativa, (newValue) => form.cooperativa_id = newValue?.id ?? null);
 watch(selectedAbogado, (newValue) => form.user_id = newValue?.id ?? null);
 watch(selectedDeudor, (newValue) => form.deudor_id = newValue?.id ?? null);
@@ -318,15 +338,15 @@ const submit = () => {
                                     <div>
                                         <InputLabel for="tipo_proceso" value="Tipo de Proceso *" />
                                         <select v-model="form.tipo_proceso" id="tipo_proceso" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                            <option>ejecutivo singular</option><option>hipotecario</option><option>prendario</option><option>libranza</option>
+                                            <option v-for="tipo in tiposProcesoOptions" :key="tipo" :value="tipo">{{ tipo }}</option>
                                         </select>
                                         <InputError :message="form.errors.tipo_proceso" class="mt-2" />
                                     </div>
                                     <div>
                                         <InputLabel for="subtipo_proceso" value="Subtipo de Proceso" />
-                                        <select v-model="form.subtipo_proceso" id="subtipo_proceso" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                            <option value="">-- Sin especificar --</option>
-                                            <option v-for="subtipo in subtipos_proceso" :key="subtipo" :value="subtipo">{{ subtipo }}</option>
+                                        <select v-model="form.subtipo_proceso" id="subtipo_proceso" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500" :disabled="!subtiposProcesoOptions.length">
+                                            <option value="">-- Seleccione un subtipo --</option>
+                                            <option v-for="subtipo in subtiposProcesoOptions" :key="subtipo" :value="subtipo">{{ subtipo }}</option>
                                         </select>
                                         <InputError class="mt-2" :message="form.errors.subtipo_proceso" />
                                     </div>
@@ -386,7 +406,6 @@ const submit = () => {
     </AuthenticatedLayout>
 </template>
 
-<!-- ESTILOS PARA VUE-SELECT -->
 <style>
 .vue-select-style .vs__dropdown-toggle {
     border-color: #d1d5db; /* gray-300 */
@@ -435,4 +454,3 @@ const submit = () => {
     padding-left: 0.25rem;
 }
 </style>
-

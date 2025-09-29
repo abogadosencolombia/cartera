@@ -49,12 +49,12 @@ class ReporteController extends Controller
             $q->whereIn('id', (clone $casosQuery)->pluck('id'));
         });
 
-        // --- CÁLCULO DE KPIs ESTRATÉGICOS (Tu lógica existente) ---
+        // --- CÁLCULO DE KPIs ESTRATÉGICOS (Corregido para PostgreSQL) ---
         $casosPorEstado = (clone $casosQuery)->select('estado_proceso', DB::raw('count(*) as total'))->groupBy('estado_proceso')->get()->pluck('total', 'estado_proceso');
         $totalCasosActivos = $casosPorEstado->sum() - ($casosPorEstado['cerrado'] ?? 0);
         $carteraEnMora = (clone $casosQuery)->where('fecha_vencimiento', '<', now())->where('estado_proceso', '!=', 'cerrado')->sum('monto_total');
         $totalRecuperado = (clone $pagosQuery)->sum('monto_pagado');
-        $promedioDiasRecuperacion = (clone $casosQuery)->where('estado_proceso', 'cerrado')->whereNotNull('fecha_ultimo_pago')->select(DB::raw('AVG(DATEDIFF(fecha_ultimo_pago, created_at)) as promedio'))->value('promedio');
+        $promedioDiasRecuperacion = (clone $casosQuery)->where('estado_proceso', 'cerrado')->whereNotNull('fecha_ultimo_pago')->select(DB::raw('AVG(fecha_ultimo_pago - created_at) as promedio'))->value('promedio');
         $casosActivosQuery = (clone $casosQuery)->where('estado_proceso', '!=', 'cerrado');
         $casosSinPagare = (clone $casosActivosQuery)->whereDoesntHave('documentos', fn ($q) => $q->where('tipo_documento', 'pagaré'))->count();
         $porcentajeSinPagare = ($totalCasosActivos > 0) ? ($casosSinPagare / $totalCasosActivos) * 100 : 0;
@@ -78,9 +78,9 @@ class ReporteController extends Controller
                 $consolidadoCooperativa = [ 'nombre' => $cooperativaSeleccionada->nombre, 'casos_activos' => $casosPorEstadoCoop->sum() - ($casosPorEstadoCoop['cerrado'] ?? 0), 'cartera_en_mora' => (clone $casosQuery)->where('fecha_vencimiento', '<', now())->where('estado_proceso', '!=', 'cerrado')->sum('monto_total'), 'total_recuperado' => (clone $pagosQuery)->sum('monto_pagado'), ];
             }
         }
-        $pagosMensuales = (clone $pagosQuery)->select(DB::raw('YEAR(fecha_pago) as anio, MONTH(fecha_pago) as mes, SUM(monto_pagado) as total'))->where('fecha_pago', '>=', Carbon::now()->subYear())->groupBy('anio', 'mes')->orderBy('anio', 'asc')->orderBy('mes', 'asc')->get();
-        $carteraPorEdad = (clone $casosQuery)->where('fecha_vencimiento', '<', now())->where('estado_proceso', '!=', 'cerrado')->select(DB::raw("CASE WHEN DATEDIFF(NOW(), fecha_vencimiento) BETWEEN 31 AND 60 THEN '31-60 días' WHEN DATEDIFF(NOW(), fecha_vencimiento) BETWEEN 61 AND 90 THEN '61-90 días' WHEN DATEDIFF(NOW(), fecha_vencimiento) BETWEEN 91 AND 120 THEN '91-120 días' WHEN DATEDIFF(NOW(), fecha_vencimiento) > 120 THEN '>120 días' ELSE '1-30 días' END as rango_mora, SUM(monto_total) as total"))->groupBy('rango_mora')->get()->pluck('total', 'rango_mora');
-        $moraMensual = (clone $casosQuery)->select(DB::raw('YEAR(fecha_vencimiento) as anio, MONTH(fecha_vencimiento) as mes, SUM(monto_total) as total'))->where('fecha_vencimiento', '>=', Carbon::now()->subYear())->groupBy('anio', 'mes')->orderBy('anio', 'asc')->orderBy('mes', 'asc')->get();
+        $pagosMensuales = (clone $pagosQuery)->select(DB::raw('EXTRACT(YEAR FROM fecha_pago) as anio, EXTRACT(MONTH FROM fecha_pago) as mes, SUM(monto_pagado) as total'))->where('fecha_pago', '>=', Carbon::now()->subYear())->groupBy('anio', 'mes')->orderBy('anio', 'asc')->orderBy('mes', 'asc')->get();
+        $carteraPorEdad = (clone $casosQuery)->where('fecha_vencimiento', '<', now())->where('estado_proceso', '!=', 'cerrado')->select(DB::raw("CASE WHEN (CURRENT_DATE - fecha_vencimiento) BETWEEN 31 AND 60 THEN '31-60 días' WHEN (CURRENT_DATE - fecha_vencimiento) BETWEEN 61 AND 90 THEN '61-90 días' WHEN (CURRENT_DATE - fecha_vencimiento) BETWEEN 91 AND 120 THEN '91-120 días' WHEN (CURRENT_DATE - fecha_vencimiento) > 120 THEN '>120 días' ELSE '1-30 días' END as rango_mora, SUM(monto_total) as total"))->groupBy('rango_mora')->get()->pluck('total', 'rango_mora');
+        $moraMensual = (clone $casosQuery)->select(DB::raw('EXTRACT(YEAR FROM fecha_vencimiento) as anio, EXTRACT(MONTH FROM fecha_vencimiento) as mes, SUM(monto_total) as total'))->where('fecha_vencimiento', '>=', Carbon::now()->subYear())->groupBy('anio', 'mes')->orderBy('anio', 'asc')->orderBy('mes', 'asc')->get();
         $rankingAbogados = User::whereIn('tipo_usuario', ['abogado', 'gestor'])->withCount(['casos as casos_count' => fn($q) => $q->whereIn('casos.id', (clone $casosQuery)->pluck('id'))])->withSum(['pagos as pagos_sum_monto_pagado' => fn($q) => $q->whereIn('pagos_caso.id', (clone $pagosQuery)->pluck('id'))], 'monto_pagado')->orderBy('pagos_sum_monto_pagado', 'desc')->limit(10)->get();
         $cooperativas = ($user->tipo_usuario === 'admin') ? Cooperativa::all(['id', 'nombre']) : $user->cooperativas;
         $abogadosYGestores = User::whereIn('tipo_usuario', ['abogado', 'gestor'])->get(['id', 'name']);
@@ -92,7 +92,8 @@ class ReporteController extends Controller
         $totalFallasActivas = (clone $baseValidacionesQuery)->where('estado', 'incumple')->count();
         $fallasPorRiesgo = (clone $baseValidacionesQuery)->where('estado', 'incumple')->select('nivel_riesgo', DB::raw('count(*) as total'))->groupBy('nivel_riesgo')->pluck('total', 'nivel_riesgo');
         $fallasPorCooperativa = (clone $baseValidacionesQuery)->where('validaciones_legales.estado', 'incumple')->join('casos', 'validaciones_legales.caso_id', '=', 'casos.id')->join('cooperativas', 'casos.cooperativa_id', '=', 'cooperativas.id')->select('cooperativas.nombre', DB::raw('count(*) as total_fallas'))->groupBy('cooperativas.nombre')->orderByDesc('total_fallas')->limit(5)->get();
-        $listadoFallas = (clone $baseValidacionesQuery)->where('estado', 'incumple')->with(['caso.deudor', 'caso.cooperativa'])->orderByRaw("FIELD(nivel_riesgo, 'alto', 'medio', 'bajo')")->latest('ultima_revision')->get();
+        // Corregir FIELD() que no existe en PostgreSQL - usar CASE WHEN
+        $listadoFallas = (clone $baseValidacionesQuery)->where('estado', 'incumple')->with(['caso.deudor', 'caso.cooperativa'])->orderByRaw("CASE WHEN nivel_riesgo = 'alto' THEN 1 WHEN nivel_riesgo = 'medio' THEN 2 WHEN nivel_riesgo = 'bajo' THEN 3 ELSE 4 END")->latest('ultima_revision')->get();
         // =================================================================
 
         return Inertia::render('Reportes/Dashboard', [
@@ -182,7 +183,7 @@ class ReporteController extends Controller
         $fallasQuery = ValidacionLegal::where('estado', 'incumple')
             ->whereIn('caso_id', (clone $casosQuery)->pluck('id'))
             ->with(['caso.deudor', 'caso.cooperativa'])
-            ->orderByRaw("FIELD(nivel_riesgo, 'alto', 'medio', 'bajo')")
+            ->orderByRaw("CASE WHEN nivel_riesgo = 'alto' THEN 1 WHEN nivel_riesgo = 'medio' THEN 2 WHEN nivel_riesgo = 'bajo' THEN 3 ELSE 4 END")
             ->latest('ultima_revision');
 
         $fileName = 'reporte_cumplimiento_' . now()->format('Y-m-d') . '.xlsx';

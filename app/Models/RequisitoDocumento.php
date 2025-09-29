@@ -10,7 +10,6 @@ class RequisitoDocumento extends Model
 {
     use HasFactory;
 
-    // Le decimos a Laravel que el nombre de nuestra tabla es 'requisitos_documento'
     protected $table = 'requisitos_documento';
 
     /**
@@ -18,7 +17,7 @@ class RequisitoDocumento extends Model
      */
     protected $fillable = [
         'cooperativa_id',
-        'tipo_proceso',
+        'tipo_proceso_id', // <-- CAMBIO: De 'tipo_proceso' a 'tipo_proceso_id'
         'tipo_documento_requerido',
     ];
 
@@ -28,5 +27,14 @@ class RequisitoDocumento extends Model
     public function cooperativa(): BelongsTo
     {
         return $this->belongsTo(Cooperativa::class);
+    }
+
+    /**
+     * === NUEVA RELACIÓN ===
+     * Un requisito pertenece a un Tipo de Proceso.
+     */
+    public function tipoProceso(): BelongsTo
+    {
+        return $this->belongsTo(TipoProceso::class);
     }
 }

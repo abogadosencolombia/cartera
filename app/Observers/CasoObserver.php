@@ -24,6 +24,7 @@ class CasoObserver
 
     /**
      * Clona las validaciones de un caso original al nuevo.
+     * (Esta función no necesita cambios, está correcta)
      */
     protected function clonarValidaciones(Caso $nuevoCaso): void
     {
@@ -31,10 +32,14 @@ class CasoObserver
 
         if ($casoOriginal && $casoOriginal->validacionesLegales->isNotEmpty()) {
             foreach ($casoOriginal->validacionesLegales as $validacionOriginal) {
+                // Usamos 'tipo' para mantener la consistencia con el método de abajo
+                $tipoValidacion = $validacionOriginal->requisito_id ? 'documento_requerido' : ($validacionOriginal->tipo ?? 'desconocido');
+
                 $nuevoCaso->validacionesLegales()->create([
                     'requisito_id' => $validacionOriginal->requisito_id,
+                    'tipo' => $tipoValidacion,
                     'estado' => $validacionOriginal->estado,
-                    'nivel_riesgo' => $validacionOriginal->requisito->nivel_riesgo ?? 'medio',
+                    'nivel_riesgo' => $validacionOriginal->nivel_riesgo ?? 'medio',
                     'observacion' => 'Validación clonada desde el caso #' . $casoOriginal->id,
                     'accion_correctiva' => $validacionOriginal->accion_correctiva,
                 ]);
@@ -47,7 +52,12 @@ class CasoObserver
      */
     protected function generarValidacionesDesdeRequisitos(Caso $caso): void
     {
-        $requisitos = RequisitoDocumento::where('tipo_proceso', $caso->tipo_proceso)
+        // ===== ¡CORRECCIÓN APLICADA AQUÍ! =====
+        // Se reemplaza la búsqueda directa por la columna 'tipo_proceso'
+        // por una búsqueda a través de la relación 'tipoProceso'.
+        $requisitos = RequisitoDocumento::whereHas('tipoProceso', function ($query) use ($caso) {
+                $query->where('nombre', $caso->tipo_proceso);
+            })
             ->where(function ($query) use ($caso) {
                 $query->where('cooperativa_id', $caso->cooperativa_id)
                       ->orWhereNull('cooperativa_id');
@@ -67,6 +77,7 @@ class CasoObserver
                 'tipo' => 'documento_requerido',
                 'estado' => $documentoExiste ? 'cumple' : 'incumple',
                 'observacion' => "Verificación automática para: '{$requisito->tipo_documento_requerido}'.",
+                // Asumo que 'nivel_riesgo' puede estar en el requisito, si no, se pone 'medio'
                 'nivel_riesgo' => $requisito->nivel_riesgo ?? 'medio',
             ]);
         }

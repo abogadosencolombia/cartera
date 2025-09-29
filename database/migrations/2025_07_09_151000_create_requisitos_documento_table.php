@@ -17,16 +17,18 @@ return new class extends Migration
             // La regla puede ser para una cooperativa específica o para todas (si es null).
             $table->foreignId('cooperativa_id')->nullable()->constrained()->onDelete('cascade');
 
-            // El tipo de proceso al que aplica la regla (ej: 'hipotecario').
-            $table->string('tipo_proceso');
+            // === CAMBIO REALIZADO ===
+            // Ahora se relaciona con la tabla 'tipos_proceso' mediante un ID.
+            $table->foreignId('tipo_proceso_id')->constrained('tipos_proceso')->onDelete('cascade');
 
             // El nombre del tipo de documento que es requerido.
             $table->string('tipo_documento_requerido');
             
             $table->timestamps();
 
-            // Creamos un índice único para evitar reglas duplicadas.
-            $table->unique(['cooperativa_id', 'tipo_proceso', 'tipo_documento_requerido'], 'regla_unica_requisito');
+            // === CAMBIO REALIZADO ===
+            // Actualizamos el índice único para que use el nuevo campo de relación.
+            $table->unique(['cooperativa_id', 'tipo_proceso_id', 'tipo_documento_requerido'], 'regla_unica_requisito');
         });
     }
 

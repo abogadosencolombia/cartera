@@ -26,6 +26,9 @@ const props = defineProps({
   modalidades:{ type: Array,  default: () => [] },
 })
 
+// --- FORMULARIO PARA ACCIONES GENERALES ---
+const accionesForm = useForm({})
+
 // --- HELPERS ---
 const fmtMoney = (n) =>
   new Intl.NumberFormat('es-CO', {
@@ -279,9 +282,49 @@ const confirmarResolucionLitis = () => {
   })
 }
 
-// ======================
-// === OTRAS ACCIONES ===
-const accionesForm = useForm({})
+// ===================
+// === DOCUMENTO MANAGEMENT ===
+// ===================
+const subirDocumentoModalAbierto = ref(false)
+const documentoMenuAbierto = ref(false)
+const documentoForm = useForm({
+  documento: null
+})
+
+const abrirSubirDocumentoModal = () => {
+  documentoForm.reset()
+  subirDocumentoModalAbierto.value = true
+}
+
+const cerrarSubirDocumentoModal = () => {
+  subirDocumentoModalAbierto.value = false
+}
+
+const subirDocumento = () => {
+  documentoForm.post(route('honorarios.contratos.documento.subir', props.contrato.id), {
+    preserveScroll: true,
+    forceFormData: true,
+    onSuccess: () => {
+      cerrarSubirDocumentoModal()
+    }
+  })
+}
+
+const toggleDocumentoMenu = () => {
+  documentoMenuAbierto.value = !documentoMenuAbierto.value
+}
+
+const eliminarDocumento = () => {
+  if (confirm('¿Estás seguro de que quieres eliminar el documento? Esta acción no se puede deshacer.')) {
+    accionesForm.delete(route('honorarios.contratos.documento.eliminar', props.contrato.id), {
+      preserveScroll: true
+    })
+  }
+}
+
+// Cerrar menú cuando se hace clic fuera
+const documentoMenuRef = ref(null)
+onClickOutside(documentoMenuRef, () => documentoMenuAbierto.value = false)
 const handleCerrarContratoClick = () => {
   const c = props.contrato
   if (['LITIS', 'CUOTA_MIXTA'].includes(c?.modalidad) && !Number(c?.monto_base_litis) && !Number(c?.litis_valor_ganado)) {
@@ -292,7 +335,7 @@ const handleCerrarContratoClick = () => {
 }
 
 // ===================
-// === UI / TABS   ===
+// === UI / TABS   ===
 const contractStatusClasses = {
   'ACTIVO':           'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300',
   'PAGOS_PENDIENTES': 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300',
@@ -405,6 +448,22 @@ const abrirReestructurarModal = () => {
   reestructurarModalAbierto.value = true
 }
 
+// ======================================================================
+// === INICIO DE LA CORRECCIÓN: Watcher para la modalidad
+// ======================================================================
+watch(() => crearContratoForm.modalidad, (newModalidad) => {
+  if (newModalidad === 'PAGO_UNICO') {
+    // Si es pago único, las cuotas son 1 por definición.
+    crearContratoForm.cuotas = 1;
+  } else if (newModalidad === 'CUOTAS' || newModalidad === 'CUOTA_MIXTA') {
+    // Opcional: restaurar un valor por defecto al cambiar a una modalidad de cuotas
+    crearContratoForm.cuotas = 12;
+  }
+});
+// ======================================================================
+// === FIN DE LA CORRECCIÓN
+// ======================================================================
+
 const cerrarReestructurarModal = () => { reestructurarModalAbierto.value = false }
 const guardarNuevoContrato = () => {
   crearContratoForm.post(route('honorarios.contratos.store'), {
@@ -467,11 +526,54 @@ const guardarNuevoContrato = () => {
             Reestructurar
           </button>
 
-          <a :href="route('honorarios.contratos.pdf.contrato', props.contrato.id)"
-             target="_blank" rel="noopener"
-             class="text-sm px-3 py-1.5 rounded-md bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600">
-            PDF Contrato
-          </a>
+          <div class="relative">
+            <template v-if="!props.contrato.documento_contrato">
+              <button @click="abrirSubirDocumentoModal"
+                      class="text-sm px-3 py-1.5 rounded-md bg-green-50 dark:bg-green-900/40 text-green-700 dark:text-green-200 border border-green-200 dark:border-green-800 hover:bg-green-100 dark:hover:bg-green-900 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                Subir Documento
+              </button>
+            </template>
+
+            <template v-else>
+              <div class="flex items-center gap-2">
+                <a :href="route('honorarios.contratos.documento.ver', props.contrato.id)"
+                   target="_blank" rel="noopener"
+                   class="text-sm px-3 py-1.5 rounded-md bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900 flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Ver Documento
+                </a>
+                <div class="relative" ref="documentoMenuRef">
+                  <button @click="toggleDocumentoMenu"
+                          class="text-sm px-2 py-1.5 rounded-md bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                    </svg>
+                  </button>
+                  <div v-if="documentoMenuAbierto" class="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-10">
+                    <button @click="abrirSubirDocumentoModal(); documentoMenuAbierto = false"
+                            class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      </svg>
+                      Reemplazar Documento
+                    </button>
+                    <button @click="eliminarDocumento(); documentoMenuAbierto = false"
+                            class="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      Eliminar Documento
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
           <a :href="route('honorarios.contratos.pdf.liquidacion', props.contrato.id)"
              target="_blank" rel="noopener"
              class="text-sm px-3 py-1.5 rounded-md bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600">
@@ -486,34 +588,33 @@ const guardarNuevoContrato = () => {
         
         <div v-if="props.contratoOrigen"
              class="bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-400 p-4 rounded-md shadow-sm">
-            <div class="flex">
-                <div class="flex-shrink-0">
-                    <svg class="h-5 w-5 text-amber-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-                    </svg>
-                </div>
-                <div class="ml-3">
-                    <p class="text-sm font-semibold text-amber-800 dark:text-amber-300">
-                        Este contrato es una reestructuración del 
-                        <Link :href="route('honorarios.contratos.show', props.contratoOrigen.id)" class="underline hover:text-amber-600">
-                            Contrato #{{ props.contratoOrigen.id }}
-                        </Link>.
-                    </p>
-                    <div class="mt-2 text-sm text-amber-700 dark:text-amber-400">
-                       <p>
-                           El contrato original tenía un estado de <strong>{{ props.contratoOrigen.estado }}</strong>
-                           con un monto de <strong>{{ fmtMoney(props.contratoOrigen.monto_total) }}</strong>
-                           en modalidad <strong>{{ props.contratoOrigen.modalidad.replace('_', ' ') }}</strong>.
-                       </p>
-                       <p v-if="props.contrato.nota" class="mt-1 italic">
-                            Nota de reestructuración: "{{ props.contrato.nota }}"
-                       </p>
-                    </div>
+          <div class="flex">
+            <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-amber-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                </svg>
+            </div>
+            <div class="ml-3">
+                <p class="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                    Este contrato es una reestructuración del 
+                    <Link :href="route('honorarios.contratos.show', props.contratoOrigen.id)" class="underline hover:text-amber-600">
+                        Contrato #{{ props.contratoOrigen.id }}
+                    </Link>.
+                </p>
+                <div class="mt-2 text-sm text-amber-700 dark:text-amber-400">
+                   <p>
+                       El contrato original tenía un estado de <strong>{{ props.contratoOrigen.estado }}</strong>
+                       con un monto de <strong>{{ fmtMoney(props.contratoOrigen.monto_total) }}</strong>
+                       en modalidad <strong>{{ props.contratoOrigen.modalidad.replace('_', ' ') }}</strong>.
+                   </p>
+                   <p v-if="props.contrato.nota" class="mt-1 italic">
+                        Nota de reestructuración: "{{ props.contrato.nota }}"
+                   </p>
                 </div>
             </div>
+          </div>
         </div>
 
-        <!-- Métricas -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
           <div class="bg-white dark:bg-gray-800 shadow-sm rounded-lg p-5">
             <div class="text-sm text-gray-500 dark:text-gray-400">Neto Contrato</div>
@@ -537,11 +638,9 @@ const guardarNuevoContrato = () => {
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <!-- Contenido principal -->
           <div class="lg:col-span-2 space-y-6">
             <div class="bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg">
               <div class="p-4 sm:p-6">
-                <!-- Tabs -->
                 <div class="border-b border-gray-200 dark:border-gray-700">
                   <nav class="-mb-px flex space-x-4 sm:space-x-6 overflow-x-auto" aria-label="Tabs">
                     <button @click="cambiarPestana('cuotas')" :class="[pestanaActiva === 'cuotas' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700', 'whitespace-nowrap pb-3 px-1 border-b-2 font-medium text-sm']">Plan de Pagos</button>
@@ -551,7 +650,6 @@ const guardarNuevoContrato = () => {
                 </div>
 
                 <div class="mt-6">
-                  <!-- PESTAÑA CUOTAS -->
                   <div v-if="pestanaActiva === 'cuotas'" class="space-y-4">
                     <div v-if="!(props.cuotas?.data || []).length" class="text-center py-12 text-gray-500 dark:text-gray-400">
                       <p>No hay cuotas definidas para este contrato.</p>
@@ -601,7 +699,6 @@ const guardarNuevoContrato = () => {
                     <Pagination class="mt-6" :links="cuotasLinks" />
                   </div>
 
-                  <!-- PESTAÑA CARGOS -->
                   <div v-if="pestanaActiva === 'cargos'">
                     <div v-if="!(props.cargos?.data || []).length" class="text-center py-8 text-gray-500 dark:text-gray-400">
                       <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></svg>
@@ -681,7 +778,6 @@ const guardarNuevoContrato = () => {
                     </div>
                   </div>
 
-                  <!-- PESTAÑA PAGOS -->
                   <div v-if="pestanaActiva === 'pagos'">
                     <div v-if="!(props.pagos?.data || []).length" class="text-center py-8 text-gray-500 dark:text-gray-400">
                       No se han registrado pagos.
@@ -733,7 +829,6 @@ const guardarNuevoContrato = () => {
             </div>
           </div>
 
-          <!-- Info del contrato -->
           <div class="space-y-6">
             <div class="bg-white dark:bg-gray-800 shadow-sm rounded-lg">
               <div class="p-6 border-b dark:border-gray-700">
@@ -782,7 +877,6 @@ const guardarNuevoContrato = () => {
       </div>
     </div>
 
-    <!-- Modales -->
     <Modal :show="pagoModalAbierto" @close="cerrarPagoModal">
       <form @submit.prevent="registrarPagoCuota">
         <div class="p-6 border-b dark:border-gray-700">
@@ -996,7 +1090,6 @@ const guardarNuevoContrato = () => {
       </form>
     </Modal>
 
-    <!-- Modal: Reestructurar -->
     <Modal :show="reestructurarModalAbierto" @close="cerrarReestructurarModal">
       <form @submit.prevent="guardarNuevoContrato">
         <div class="p-6 border-b dark:border-gray-700">
@@ -1006,11 +1099,10 @@ const guardarNuevoContrato = () => {
         </div>
 
         <div class="p-6 space-y-6">
-          <!-- CORRECCIÓN: Se reemplaza el input de texto por el buscador interactivo completo -->
-          <div class="relative" ref="clientDropdown">
-              <InputLabel for="cliente_search" value="Cliente" />
+          <div>
+              <InputLabel for="cliente_search_reestructurar" value="Cliente" />
               <TextInput
-                  id="cliente_search"
+                  id="cliente_search_reestructurar"
                   type="text"
                   v-model="clienteSearch"
                   disabled
@@ -1021,10 +1113,10 @@ const guardarNuevoContrato = () => {
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <InputLabel for="modalidad_re" value="Modalidad del Contrato" />
+              <InputLabel for="modalidad_reestructurar" value="Modalidad del Contrato" />
               <select
                 v-model="crearContratoForm.modalidad"
-                id="modalidad_re"
+                id="modalidad_reestructurar"
                 class="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm dark:bg-gray-900 dark:border-gray-700"
               >
                 <option v-for="mod in props.modalidades" :key="mod" :value="mod">{{ mod.replace('_',' ') }}</option>
@@ -1032,8 +1124,8 @@ const guardarNuevoContrato = () => {
               <InputError class="mt-2" :message="crearContratoForm.errors.modalidad" />
             </div>
             <div>
-              <InputLabel for="inicio" value="Fecha de Inicio" />
-              <TextInput id="inicio" type="date" v-model="crearContratoForm.inicio" class="mt-1 block w-full" />
+              <InputLabel for="inicio_reestructurar" value="Fecha de Inicio" />
+              <TextInput id="inicio_reestructurar" type="date" v-model="crearContratoForm.inicio" class="mt-1 block w-full" />
               <InputError class="mt-2" :message="crearContratoForm.errors.inicio" />
             </div>
           </div>
@@ -1041,38 +1133,38 @@ const guardarNuevoContrato = () => {
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <template v-if="['CUOTAS','PAGO_UNICO','CUOTA_MIXTA'].includes(crearContratoForm.modalidad)">
               <div>
-                <InputLabel for="monto_total" value="Monto Total (Parte Fija)" />
-                <TextInput id="monto_total" type="number" step="0.01" v-model="crearContratoForm.monto_total" class="mt-1 block w-full" placeholder="Ej: 5000000" />
+                <InputLabel for="monto_total_reestructurar" value="Monto Total (Parte Fija)" />
+                <TextInput id="monto_total_reestructurar" type="number" step="0.01" v-model="crearContratoForm.monto_total" class="mt-1 block w-full" placeholder="Ej: 5000000" />
                 <InputError class="mt-2" :message="crearContratoForm.errors.monto_total" />
               </div>
-              <div>
-                <InputLabel for="cuotas" value="Número de Cuotas" />
-                <TextInput id="cuotas" type="number" v-model="crearContratoForm.cuotas" class="mt-1 block w-full" placeholder="Ej: 12" />
+              <div v-if="crearContratoForm.modalidad !== 'PAGO_UNICO'">
+                <InputLabel for="cuotas_reestructurar" value="Número de Cuotas" />
+                <TextInput id="cuotas_reestructurar" type="number" v-model="crearContratoForm.cuotas" class="mt-1 block w-full" placeholder="Ej: 12" />
                 <InputError class="mt-2" :message="crearContratoForm.errors.cuotas" />
               </div>
               <div>
-                <InputLabel for="anticipo" value="Anticipo (Opcional)" />
-                <TextInput id="anticipo" type="number" step="0.01" v-model="crearContratoForm.anticipo" class="mt-1 block w-full" placeholder="Ej: 1000000" />
+                <InputLabel for="anticipo_reestructurar" value="Anticipo (Opcional)" />
+                <TextInput id="anticipo_reestructurar" type="number" step="0.01" v-model="crearContratoForm.anticipo" class="mt-1 block w-full" placeholder="Ej: 1000000" />
                 <InputError class="mt-2" :message="crearContratoForm.errors.anticipo" />
               </div>
             </template>
 
             <template v-if="['LITIS','CUOTA_MIXTA'].includes(crearContratoForm.modalidad)">
               <div>
-                <InputLabel for="porcentaje_litis" value="Porcentaje de Éxito (%)" />
-                <TextInput id="porcentaje_litis" type="number" step="0.01" v-model="crearContratoForm.porcentaje_litis" class="mt-1 block w-full" placeholder="Ej: 20" />
+                <InputLabel for="porcentaje_litis_reestructurar" value="Porcentaje de Éxito (%)" />
+                <TextInput id="porcentaje_litis_reestructurar" type="number" step="0.01" v-model="crearContratoForm.porcentaje_litis" class="mt-1 block w-full" placeholder="Ej: 20" />
                 <InputError class="mt-2" :message="crearContratoForm.errors.porcentaje_litis" />
               </div>
             </template>
           </div>
 
           <div>
-            <InputLabel for="nota" value="Nota (Opcional)" />
-            <Textarea id="nota" v-model="crearContratoForm.nota" rows="3" class="mt-1 block w-full" />
+            <InputLabel for="nota_reestructurar" value="Nota (Opcional)" />
+            <Textarea id="nota_reestructurar" v-model="crearContratoForm.nota" rows="3" class="mt-1 block w-full" />
             <InputError class="mt-2" :message="crearContratoForm.errors.nota" />
           </div>
 
-          <input type="hidden" :value="crearContratoForm.contrato_origen_id">
+          <input type="hidden" v-model="crearContratoForm.contrato_origen_id">
         </div>
 
         <div class="px-6 py-4 bg-gray-50 dark:bg-gray-900/50 flex items-center justify-end gap-3 rounded-b-xl">
@@ -1083,6 +1175,60 @@ const guardarNuevoContrato = () => {
         </div>
       </form>
     </Modal>
+
+    <Modal :show="subirDocumentoModalAbierto" @close="cerrarSubirDocumentoModal">
+      <form @submit.prevent="subirDocumento">
+        <div class="p-6 border-b dark:border-gray-700">
+          <h4 class="font-semibold text-lg text-gray-800 dark:text-gray-100">
+            {{ props.contrato.documento_contrato ? 'Reemplazar Documento del Contrato' : 'Subir Documento del Contrato' }}
+          </h4>
+        </div>
+        <div class="p-6 space-y-4">
+          <div v-if="props.contrato.documento_contrato" class="p-4 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+            <div class="flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.314 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <span class="text-sm text-amber-800 dark:text-amber-300 font-medium">
+                Este contrato ya tiene un documento. Al subir uno nuevo, el anterior será reemplazado.
+              </span>
+            </div>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">
+              Documento del Contrato (PDF únicamente)
+            </label>
+            <input type="file" 
+                   accept=".pdf"
+                   @input="documentoForm.documento = $event.target.files[0]" 
+                   required 
+                   class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 dark:file:bg-green-900/50 dark:file:text-green-300 dark:hover:file:bg-green-900"/>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Archivo máximo: 10MB. Solo se permiten archivos PDF.
+            </p>
+            <InputError :message="documentoForm.errors.documento" class="mt-2" />
+          </div>
+
+          <div v-if="documentoForm.documento" class="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-md">
+            <div class="flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <div class="flex-1">
+                <p class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ documentoForm.documento.name }}</p>
+                <p class="text-xs text-gray-500">{{ (documentoForm.documento.size / 1024 / 1024).toFixed(2) }} MB</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="px-6 py-4 bg-gray-50 dark:bg-gray-900/50 flex items-center justify-end gap-3 rounded-b-xl">
+          <SecondaryButton type="button" @click="cerrarSubirDocumentoModal">Cancelar</SecondaryButton>
+          <PrimaryButton type="submit" :disabled="documentoForm.processing || !documentoForm.documento">
+            {{ documentoForm.processing ? 'Subiendo...' : (props.contrato.documento_contrato ? 'Reemplazar Documento' : 'Subir Documento') }}
+          </PrimaryButton>
+        </div>
+      </form>
+    </Modal>
   </AuthenticatedLayout>
 </template>
-

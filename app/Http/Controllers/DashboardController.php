@@ -76,10 +76,10 @@ class DashboardController extends Controller
         ];
 
         $chartData = [
-            'casosPorEstado' => (clone $baseQuery)->select('estado_proceso', DB::raw('count(*) as total'))->groupBy('estado_proceso')->get()->pluck('total', 'estado_proceso'),
-            'incidentesPorMes' => IncidenteJuridico::query()->select(DB::raw('DATE_FORMAT(fecha_registro, "%Y-%m") as mes'), DB::raw('count(*) as total'))->where('fecha_registro', '>=', Carbon::now()->subYear())->groupBy('mes')->orderBy('mes')->get()->pluck('total', 'mes'),
-            'validacionesPorEstado' => (clone $baseQuery)->join('validaciones_legales', 'casos.id', '=', 'validaciones_legales.caso_id')->select('validaciones_legales.estado', DB::raw('count(*) as total'))->groupBy('validaciones_legales.estado')->get()->pluck('total', 'estado'),
-        ];
+        'casosPorEstado' => (clone $baseQuery)->select('estado_proceso', DB::raw('count(*) as total'))->groupBy('estado_proceso')->get()->pluck('total', 'estado_proceso'),
+        'incidentesPorMes' => IncidenteJuridico::query()->select(DB::raw('TO_CHAR(fecha_registro, \'YYYY-MM\') as mes'), DB::raw('count(*) as total'))->where('fecha_registro', '>=', Carbon::now()->subYear())->groupBy('mes')->orderBy('mes')->get()->pluck('total', 'mes'),
+        'validacionesPorEstado' => (clone $baseQuery)->join('validaciones_legales', 'casos.id', '=', 'validaciones_legales.caso_id')->select('validaciones_legales.estado', DB::raw('count(*) as total'))->groupBy('validaciones_legales.estado')->get()->pluck('total', 'estado'),
+    ];
         
         $rankingQuery = User::query()->select('users.id', 'users.name', DB::raw('SUM(pagos_caso.monto_pagado) as total_recuperado'))->join('casos', 'users.id', '=', 'casos.user_id')->join('pagos_caso', 'casos.id', '=', 'pagos_caso.caso_id')->whereIn('users.tipo_usuario', ['abogado', 'gestor']);
         $rankingQuery->when($request->filled('fecha_desde'), fn($q) => $q->whereDate('pagos_caso.fecha_pago', '>=', $request->input('fecha_desde')));

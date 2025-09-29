@@ -23,7 +23,7 @@ return new class extends Migration
 
             // --- Información del Crédito ---
             $table->string('referencia_credito')->nullable();
-            $table->enum('tipo_proceso', ['ejecutivo singular', 'hipotecario', 'prendario', 'libranza']);
+            $table->enum('tipo_proceso', ['CURADURIA','EJECUTIVO','RESTITUCION','LABORAL','PAGO DIRECTO','REGIMEN DE INSOLVENCIA','INSOLVENCIA ECONOMICA','PERSONAL','PROCESO VERBAL']);
             $table->enum('estado_proceso', ['prejurídico', 'demandado', 'en ejecución', 'sentencia', 'cerrado'])->default('prejurídico');
             $table->enum('tipo_garantia_asociada', ['codeudor', 'hipotecaria', 'prendaria', 'sin garantía']);
             $table->date('fecha_apertura');

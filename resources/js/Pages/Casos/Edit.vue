@@ -18,7 +18,8 @@ import axios from 'axios';
 // --- DEFINICIÓN DE PROPS ---
 const props = defineProps({
     caso: { type: Object, required: true },
-    subtipos_proceso: { type: Array, default: () => [] },
+    // ===== CAMBIO REALIZADO: Se recibe la nueva estructura de datos =====
+    tiposYSubtipos: { type: Array, default: () => [] },
     etapas_procesales: { type: Array, default: () => [] },
 });
 
@@ -55,7 +56,7 @@ const reopenTheCase = () => {
     });
 };
 
-// --- LÓGICA REUTILIZABLE PARA BÚSQUEDA ASÍNCRONA (Sin cambios) ---
+// --- LÓGICA REUTILIZABLE PARA BÚSQUEDA ASÍNCRONA ---
 const useDebouncedSearch = (routeName, mapResult = (item) => item) => {
     const options = ref([]);
     const message = ref('Escribe para buscar...');
@@ -103,7 +104,7 @@ const useDebouncedSearch = (routeName, mapResult = (item) => item) => {
     return { options, onSearch, message };
 };
 
-// --- TRANSFORMADORES DE DATOS DE API (Sin cambios) ---
+// --- TRANSFORMADORES DE DATOS DE API ---
 const mapGeneric = (item) => item ? ({ id: item.id, nombre: item.label || item.nombre }) : null;
 const mapUser = (item) => item ? ({ id: item.id, name: item.label || item.name }) : null;
 const mapPersonas = (item) => {
@@ -116,13 +117,13 @@ const mapPersonas = (item) => {
     return { id: item.id, nombre_completo: item.label || item.nombre_completo || 'Dato no válido', numero_documento: 'N/A' };
 };
 
-// --- CONFIGURACIÓN DE SELECTORES (Sin cambios) ---
+// --- CONFIGURACIÓN DE SELECTORES ---
 const { options: cooperativasOptions, onSearch: searchCooperativas, message: cooperativasMessage } = useDebouncedSearch('cooperativas.search', mapGeneric);
 const { options: abogadosOptions, onSearch: searchAbogados, message: abogadosMessage } = useDebouncedSearch('users.search', mapUser);
 const { options: juzgadosOptions, onSearch: searchJuzgados, message: juzgadosMessage } = useDebouncedSearch('juzgados.search', mapGeneric);
 const { options: personasOptions, onSearch: searchPersonas, message: personasMessage } = useDebouncedSearch('personas.search', mapPersonas);
 
-// --- INICIALIZACIÓN DEL FORMULARIO (Sin cambios) ---
+// --- INICIALIZACIÓN DEL FORMULARIO ---
 const form = useForm({
     _method: 'PATCH',
     cooperativa_id: props.caso.cooperativa_id,
@@ -150,11 +151,32 @@ const form = useForm({
     notas_legales: props.caso.notas_legales,
 });
 
-// --- LÓGICA ESPECIAL DEL FORMULARIO DE EDICIÓN (Modificado) ---
+// --- LÓGICA ESPECIAL DEL FORMULARIO DE EDICIÓN ---
 const isFormDisabled = computed(() => (props.caso.bloqueado && user.tipo_usuario !== 'admin') || isClosed.value);
 watch(() => form.bloqueado, v => { if (!v) form.motivo_bloqueo = ''; });
 
-// --- VARIABLES Y LÓGICA PARA V-SELECT (Sin cambios) ---
+// ===== INICIO DE LÓGICA PARA SELECTORES EN CASCADA =====
+const tiposProcesoOptions = computed(() => props.tiposYSubtipos.map(tipo => tipo.nombre));
+
+const subtiposProcesoOptions = computed(() => {
+    if (!form.tipo_proceso) return [];
+    const tipoSeleccionado = props.tiposYSubtipos.find(t => t.nombre === form.tipo_proceso);
+    return tipoSeleccionado && tipoSeleccionado.subtipos ? tipoSeleccionado.subtipos.map(s => s.nombre) : [];
+});
+
+watch(() => form.tipo_proceso, (newTipo, oldTipo) => {
+    if (newTipo !== oldTipo) {
+        // Verifica si el subtipo actual sigue siendo válido para el nuevo tipo
+        const tipoActual = props.tiposYSubtipos.find(t => t.nombre === newTipo);
+        const subtiposValidos = tipoActual && tipoActual.subtipos ? tipoActual.subtipos.map(s => s.nombre) : [];
+        if (!subtiposValidos.includes(form.subtipo_proceso)) {
+            form.subtipo_proceso = '';
+        }
+    }
+});
+// ===== FIN DE LÓGICA PARA SELECTORES EN CASCADA =====
+
+// --- VARIABLES Y LÓGICA PARA V-SELECT ---
 const selectedCooperativa = ref(null);
 const selectedAbogado = ref(null);
 const selectedDeudor = ref(null);
@@ -200,7 +222,7 @@ const initSelectData = () => {
 };
 initSelectData();
 
-// --- ENVÍO DEL FORMULARIO (Sin cambios) ---
+// --- ENVÍO DEL FORMULARIO ---
 const submit = () => {
     form.patch(route('casos.update', props.caso.id));
 };
@@ -349,15 +371,15 @@ const submit = () => {
                                         <div>
                                             <InputLabel for="tipo_proceso" value="Tipo de Proceso *" />
                                             <select v-model="form.tipo_proceso" id="tipo_proceso" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 rounded-md shadow-sm">
-                                                <option>ejecutivo singular</option><option>hipotecario</option><option>prendario</option><option>libranza</option>
+                                                <option v-for="tipo in tiposProcesoOptions" :key="tipo" :value="tipo">{{ tipo }}</option>
                                             </select>
                                             <InputError :message="form.errors.tipo_proceso" class="mt-2" />
                                         </div>
                                         <div>
                                             <InputLabel for="subtipo_proceso" value="Subtipo de Proceso" />
-                                            <select v-model="form.subtipo_proceso" id="subtipo_proceso" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 rounded-md shadow-sm">
-                                                <option value="">-- Sin especificar --</option>
-                                                <option v-for="subtipo in subtipos_proceso" :key="subtipo" :value="subtipo">{{ subtipo }}</option>
+                                            <select v-model="form.subtipo_proceso" id="subtipo_proceso" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 rounded-md shadow-sm" :disabled="!subtiposProcesoOptions.length">
+                                                <option value="">-- Seleccione un subtipo --</option>
+                                                <option v-for="subtipo in subtiposProcesoOptions" :key="subtipo" :value="subtipo">{{ subtipo }}</option>
                                             </select>
                                             <InputError class="mt-2" :message="form.errors.subtipo_proceso" />
                                         </div>
@@ -474,7 +496,6 @@ const submit = () => {
     </AuthenticatedLayout>
 </template>
 
-<!-- ESTILOS PARA VUE-SELECT -->
 <style>
 .vue-select-style .vs__dropdown-toggle {
     border-color: #d1d5db;
@@ -511,4 +532,3 @@ const submit = () => {
     color: white;
 }
 </style>
-

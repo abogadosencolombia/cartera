@@ -25,7 +25,7 @@ class IndicadoresController extends Controller
         // --- 2. Cálculo del Tiempo Promedio de Resolución (en días) ---
         $tiempoPromedio = DecisionComiteEtica::join('tickets_disciplinarios', 'decisiones_comite_etica.ticket_id', '=', 'tickets_disciplinarios.id')
             ->join('incidentes_juridicos', 'tickets_disciplinarios.incidente_id', '=', 'incidentes_juridicos.id')
-            ->select(DB::raw('AVG(DATEDIFF(decisiones_comite_etica.fecha_revision, incidentes_juridicos.fecha_registro)) as dias'))
+            ->select(DB::raw('AVG(decisiones_comite_etica.fecha_revision - incidentes_juridicos.fecha_registro) as dias'))
             ->value('dias');
 
         // --- 3. Datos para Gráfico de Incidentes por Estado ---

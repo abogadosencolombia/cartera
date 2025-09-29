@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Cooperativa;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -15,15 +14,16 @@ class StoreCasoRequest extends FormRequest
 
     public function rules(): array
     {
-        $subtipos_proceso = ['CURADURIA', 'DIVISORIO', 'GARANTIA REAL', 'HIPOTECARIO', 'INSOLVENCIA', 'LABORAL', 'MIXTO', 'MUEBLE', 'PAGO DIRECTO', 'PRENDARIO', 'SINGULAR', 'SUCESIÓN'];
-        $etapas_procesales = ['Avalúo y Remate', 'Notificación', 'Contestación Demanda', 'Audiencia Inicial', 'Audiencia de Instrucción y Juzgamiento', 'Sentencia', 'Apelación', 'Ejecución de Sentencia', 'Liquidación', 'Terminación'];
-
         return [
             // --- DATOS BÁSICOS DEL CASO ---
             'cooperativa_id' => ['required', 'exists:cooperativas,id'],
             'user_id' => ['required', 'exists:users,id'],
             'referencia_credito' => ['nullable', 'string', 'max:255'],
-            'tipo_proceso' => ['required', Rule::in(['ejecutivo singular', 'hipotecario', 'prendario', 'libranza'])],
+            
+            // ===== REGLA CORREGIDA Y DINÁMICA =====
+            // Ahora comprueba que el valor exista en la tabla 'tipos_proceso'
+            'tipo_proceso' => ['required', 'string', Rule::exists('tipos_proceso', 'nombre')],
+            
             'estado_proceso' => ['required', Rule::in(['prejurídico', 'demandado', 'en ejecución', 'sentencia', 'cerrado'])],
             'tipo_garantia_asociada' => ['required', Rule::in(['codeudor', 'hipotecaria', 'prendaria', 'sin garantía'])],
             'fecha_apertura' => ['required', 'date', 'before_or_equal:today'],
@@ -42,9 +42,9 @@ class StoreCasoRequest extends FormRequest
             
             'clonado_de_id' => ['nullable', 'exists:casos,id'],
 
-            // --- NUEVAS REGLAS DE VALIDACIÓN ---
-            'subtipo_proceso' => ['nullable', 'string', Rule::in($subtipos_proceso)],
-            'etapa_procesal' => ['nullable', 'string', Rule::in($etapas_procesales)],
+            // ===== REGLAS CORREGIDAS Y DINÁMICAS =====
+            'subtipo_proceso' => ['nullable', 'string', Rule::exists('subtipos_proceso', 'nombre')],
+            'etapa_procesal' => ['nullable', 'string', Rule::exists('etapas_procesales', 'nombre')],
             'juzgado_id' => ['nullable', 'integer', 'exists:juzgados,id'],
         ];
     }

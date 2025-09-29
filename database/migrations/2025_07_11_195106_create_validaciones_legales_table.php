@@ -1,5 +1,4 @@
 <?php
-
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -11,18 +10,16 @@ return new class extends Migration
         Schema::create('validaciones_legales', function (Blueprint $table) {
             $table->id();
             $table->foreignId('caso_id')->constrained('casos')->onDelete('cascade');
-            $table->enum('tipo', [
-                'poder_vencido', 'tasa_usura', 'sin_pagare',
-                'sin_carta_instrucciones', 'sin_certificacion_saldo',
-                'tipo_proceso_vs_garantia', 'plazo_excedido_sin_demanda',
-                'documento_faltante_para_radicar'
-            ]);
-            $table->enum('estado', ['cumple', 'incumple', 'no_aplica'])->default('cumple');
+            
+            // En PostgreSQL usamos VARCHAR con CHECK constraint en lugar de ENUM
+            $table->string('tipo')->check("tipo IN ('poder_vencido', 'tasa_usura', 'sin_pagare', 'sin_carta_instrucciones', 'sin_certificacion_saldo', 'tipo_proceso_vs_garantia', 'plazo_excedido_sin_demanda', 'documento_faltante_para_radicar', 'documento_requerido')");
+            
+            $table->string('estado')->default('cumple')->check("estado IN ('cumple', 'incumple', 'no_aplica')");
             
             // --- NUEVOS CAMPOS ---
-            $table->enum('nivel_riesgo', ['bajo', 'medio', 'alto'])->default('medio')->comment('Clasificación del impacto de la falla.');
-            $table->text('accion_correctiva')->nullable()->comment('Descripción de cómo se solucionó la falla.');
-            $table->timestamp('fecha_cumplimiento')->nullable()->comment('Fecha en que se solucionó la falla.');
+            $table->string('nivel_riesgo')->default('medio')->check("nivel_riesgo IN ('bajo', 'medio', 'alto')");
+            $table->text('accion_correctiva')->nullable();
+            $table->timestamp('fecha_cumplimiento')->nullable();
             // --- FIN NUEVOS CAMPOS ---
 
             $table->text('observacion')->nullable();
@@ -31,6 +28,11 @@ return new class extends Migration
 
             $table->unique(['caso_id', 'tipo']);
         });
+        
+        // Agregar comentarios (PostgreSQL syntax)
+        \DB::statement("COMMENT ON COLUMN validaciones_legales.nivel_riesgo IS 'Clasificación del impacto de la falla.'");
+        \DB::statement("COMMENT ON COLUMN validaciones_legales.accion_correctiva IS 'Descripción de cómo se solucionó la falla.'");
+        \DB::statement("COMMENT ON COLUMN validaciones_legales.fecha_cumplimiento IS 'Fecha en que se solucionó la falla.'");
     }
 
     public function down(): void

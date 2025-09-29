@@ -12,16 +12,17 @@ import { TrashIcon } from '@heroicons/vue/24/outline';
 const props = defineProps({
     requisitos: Array,
     cooperativas: Array,
-    tipos_proceso: Array,
+    tipos_proceso: Array, // Ahora será un array de objetos: [{id: 1, nombre: '...'}, ...]
     tipos_documento: Array,
 });
 
 const page = usePage();
 
-// Formulario para crear un nuevo requisito
+// === CAMBIO REALIZADO ===
+// El formulario ahora usará 'tipo_proceso_id' y lo inicializará con el ID del primer elemento.
 const form = useForm({
-    cooperativa_id: null, // null significa que aplica a todas
-    tipo_proceso: props.tipos_proceso[0],
+    cooperativa_id: null,
+    tipo_proceso_id: props.tipos_proceso[0]?.id || null,
     tipo_documento_requerido: props.tipos_documento[0],
 });
 
@@ -31,7 +32,6 @@ const submit = () => {
     });
 };
 
-// Lógica para el modal de confirmación de borrado
 const confirmingDeletion = ref(false);
 const itemToDelete = ref(null);
 
@@ -41,7 +41,11 @@ const confirmDeletion = (requisito) => {
 };
 
 const deleteItem = () => {
-    useForm({}).delete(route('requisitos.destroy', itemToDelete.value.id), {
+    // Para la eliminación, necesitamos recargar los datos del requisito para el modal.
+    // Buscamos el requisito completo en la prop para mostrar el nombre del proceso.
+    const fullRequisito = props.requisitos.find(r => r.id === itemToDelete.value.id);
+    
+    useForm({}).delete(route('requisitos.destroy', fullRequisito.id), {
         preserveScroll: true,
         onSuccess: () => closeModal(),
     });
@@ -88,8 +92,10 @@ const closeModal = () => {
 
                             <div>
                                 <InputLabel for="tipo_proceso" value="Para el Tipo de Proceso" />
-                                <select v-model="form.tipo_proceso" id="tipo_proceso" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 rounded-md shadow-sm">
-                                    <option v-for="tipo in tipos_proceso" :key="tipo" :value="tipo">{{ tipo }}</option>
+                                <!-- === CAMBIO REALIZADO === -->
+                                <!-- El select ahora trabaja con el array de objetos de 'tipos_proceso' -->
+                                <select v-model="form.tipo_proceso_id" id="tipo_proceso" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 rounded-md shadow-sm">
+                                    <option v-for="tipo in tipos_proceso" :key="tipo.id" :value="tipo.id">{{ tipo.nombre }}</option>
                                 </select>
                             </div>
 
@@ -138,7 +144,9 @@ const closeModal = () => {
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                                                 {{ req.cooperativa ? req.cooperativa.nombre : 'Todas' }}
                                             </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ req.tipo_proceso }}</td>
+                                            <!-- === CAMBIO REALIZADO === -->
+                                            <!-- Ahora mostramos el nombre del tipo de proceso desde la relación -->
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ req.tipo_proceso.nombre }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ req.tipo_documento_requerido }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                 <button @click="confirmDeletion(req)" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
@@ -161,8 +169,10 @@ const closeModal = () => {
                 <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
                     ¿Eliminar Requisito?
                 </h2>
+                <!-- === CAMBIO REALIZADO === -->
+                <!-- El modal ahora también usa la relación para mostrar el nombre del proceso -->
                 <p class="mt-2 text-sm text-gray-600 dark:text-gray-400" v-if="itemToDelete">
-                    Estás a punto de eliminar la regla que requiere el documento <span class="font-bold">{{ itemToDelete.tipo_documento_requerido }}</span> para los casos de tipo <span class="font-bold">{{ itemToDelete.tipo_proceso }}</span>. Esta acción no se puede deshacer.
+                    Estás a punto de eliminar la regla que requiere el documento <span class="font-bold">{{ itemToDelete.tipo_documento_requerido }}</span> para los casos de tipo <span class="font-bold">{{ itemToDelete.tipo_proceso.nombre }}</span>. Esta acción no se puede deshacer.
                 </p>
                 <div class="mt-6 flex justify-end">
                     <SecondaryButton @click="closeModal"> Cancelar </SecondaryButton>

@@ -7,17 +7,16 @@ use App\Models\Cooperativa;
 use App\Models\Persona;
 use App\Models\User;
 use App\Models\PlantillaDocumento;
+use App\Models\TipoProceso; // <-- Se usa tu modelo
 use App\Http\Requests\StoreCasoRequest;
 use App\Http\Requests\UpdateCasoRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
-use App\Services\IntegrationService;
-use App\Services\ValidacionLegalService;
-use App\Models\Juzgado;
 
 class CasoController extends Controller
 {
@@ -37,8 +36,8 @@ class CasoController extends Controller
         } elseif ($user->tipo_usuario === 'cli') {
             $query->where(function($q) use ($user) {
                 $q->where('deudor_id', $user->persona_id)
-                  ->orWhere('codeudor1_id', $user->persona_id)
-                  ->orWhere('codeudor2_id', $user->persona_id);
+                    ->orWhere('codeudor1_id', $user->persona_id)
+                    ->orWhere('codeudor2_id', $user->persona_id);
             });
         }
 
@@ -64,8 +63,8 @@ class CasoController extends Controller
             'cooperativas' => $cooperativas,
             'abogadosYGestores' => $abogadosYGestores,
             'personas' => $personas,
-            'subtipos_proceso' => ['CURADURIA', 'DIVISORIO', 'GARANTIA REAL', 'HIPOTECARIO', 'INSOLVENCIA', 'LABORAL', 'MIXTO', 'MUEBLE', 'PAGO DIRECTO', 'PRENDARIO', 'SINGULAR', 'SUCESIÓN'],
-            'etapas_procesales' => ['Avalúo y Remate', 'Notificación', 'Contestación Demanda', 'Audiencia Inicial', 'Audiencia de Instrucción y Juzgamiento', 'Sentencia', 'Apelación', 'Ejecución de Sentencia', 'Liquidación', 'Terminación'],
+            'tiposYSubtipos' => TipoProceso::with('subtipos')->orderBy('nombre')->get(),
+            'etapas_procesales' => DB::table('etapas_procesales')->orderBy('nombre')->pluck('nombre')->all(),
         ]);
     }
         
@@ -89,20 +88,10 @@ class CasoController extends Controller
     {
         $this->authorize('view', $caso);
 
-        // ===== ¡AQUÍ ESTÁ LA CORRECCIÓN! =====
-        // Añadimos 'codeudor1' y 'codeudor2' a la lista de datos a cargar.
         $caso->load([
-            'deudor', 
-            'codeudor1', // <-- LÍNEA AÑADIDA
-            'codeudor2', // <-- LÍNEA AÑADIDA
-            'cooperativa', 
-            'user', 
-            'documentos', 
-            'bitacoras.user', 
-            'documentosGenerados.usuario',
-            'pagos.usuario',
-            'validacionesLegales.requisito',
-            'juzgado'
+            'deudor', 'codeudor1', 'codeudor2', 'cooperativa', 'user', 'documentos', 
+            'bitacoras.user', 'documentosGenerados.usuario', 'pagos.usuario',
+            'validacionesLegales.requisito', 'juzgado'
         ]);
         
         $caso->setRelation('auditoria', $caso->bitacoras);
@@ -140,8 +129,8 @@ class CasoController extends Controller
             'cooperativas' => $cooperativas,
             'abogadosYGestores' => $abogadosYGestores,
             'personas' => $personas,
-            'subtipos_proceso' => ['CURADURIA', 'DIVISORIO', 'GARANTIA REAL', 'HIPOTECARIO', 'INSOLVENCIA', 'LABORAL', 'MIXTO', 'MUEBLE', 'PAGO DIRECTO', 'PRENDARIO', 'SINGULAR', 'SUCESIÓN'],
-            'etapas_procesales' => ['Avalúo y Remate', 'Notificación', 'Contestación Demanda', 'Audiencia Inicial', 'Audiencia de Instrucción y Juzgamiento', 'Sentencia', 'Apelación', 'Ejecución de Sentencia', 'Liquidación', 'Terminación'],
+            'tiposYSubtipos' => TipoProceso::with('subtipos')->orderBy('nombre')->get(),
+            'etapas_procesales' => DB::table('etapas_procesales')->orderBy('nombre')->pluck('nombre')->all(),
         ]);
     }
 
@@ -178,8 +167,8 @@ class CasoController extends Controller
             'cooperativas' => Cooperativa::all(['id', 'nombre']),
             'abogadosYGestores' => User::whereIn('tipo_usuario', ['abogado', 'gestor'])->select('id', 'name')->get(),
             'personas' => Persona::select('id', 'nombre_completo', 'numero_documento')->get(),
-            'subtipos_proceso' => ['CURADURIA', 'DIVISORIO', 'GARANTIA REAL', 'HIPOTECARIO', 'INSOLVENCIA', 'LABORAL', 'MIXTO', 'MUEBLE', 'PAGO DIRECTO', 'PRENDARIO', 'SINGULAR', 'SUCESIÓN'],
-            'etapas_procesales' => ['Avalúo y Remate', 'Notificación', 'Contestación Demanda', 'Audiencia Inicial', 'Audiencia de Instrucción y Juzgamiento', 'Sentencia', 'Apelación', 'Ejecución de Sentencia', 'Liquidación', 'Terminación'],
+            'tiposYSubtipos' => TipoProceso::with('subtipos')->orderBy('nombre')->get(),
+            'etapas_procesales' => DB::table('etapas_procesales')->orderBy('nombre')->pluck('nombre')->all(),
         ]);
     }
 }

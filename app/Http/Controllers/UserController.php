@@ -12,6 +12,7 @@ use Inertia\Response;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Validation\Rules;
+use App\Models\Especialidad;
 
 class UserController extends Controller
 {
@@ -23,7 +24,7 @@ class UserController extends Controller
         
         // Esta consulta es correcta. No necesita cambios.
         return Inertia::render('Users/Index', [
-            'users' => User::with('cooperativas')->get(),
+            'users' => User::with('cooperativas', 'especialidades')->get(),
         ]);
     }
 
@@ -31,8 +32,10 @@ class UserController extends Controller
     {
         $this->authorize('create', User::class);
 
+        // ===== 3. ENVIAR LISTA DE ESPECIALIDADES A LA VISTA =====
         return Inertia::render('Users/Create', [
             'allCooperativas' => Cooperativa::all(['id', 'nombre']),
+            'allEspecialidades' => Especialidad::all(['id', 'nombre']),
             'personas' => Persona::all(['id', 'nombre_completo', 'numero_documento']),
         ]);
     }
@@ -47,6 +50,7 @@ class UserController extends Controller
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
             'tipo_usuario' => 'required|in:admin,gestor,abogado,cliente',
             'cooperativas' => 'nullable|array',
+            'especialidades' => 'nullable|array',
             'persona_id' => 'nullable|exists:personas,id'
         ]);
 
@@ -64,6 +68,10 @@ class UserController extends Controller
             $user->cooperativas()->sync($request->cooperativas);
         }
 
+        if ($request->has('especialidades') && in_array($user->tipo_usuario, ['abogado', 'gestor'])) {
+            $user->especialidades()->sync($request->especialidades);
+        }
+
         return to_route('admin.users.index')->with('success', '¡Usuario creado exitosamente!');
     }
     
@@ -77,9 +85,11 @@ class UserController extends Controller
     {
         $this->authorize('update', $user);
         
+        // ===== 6. ENVIAR LISTA DE ESPECIALIDADES A LA VISTA DE EDICIÓN =====
         return Inertia::render('Users/Edit', [
-            'user' => $user->load('cooperativas'),
+            'user' => $user->load('cooperativas', 'especialidades'),
             'allCooperativas' => Cooperativa::all(['id', 'nombre']),
+            'allEspecialidades' => Especialidad::all(['id', 'nombre']),
             'personas' => Persona::all(['id', 'nombre_completo', 'numero_documento']),
         ]);
     }
@@ -98,6 +108,8 @@ class UserController extends Controller
             'preferencias_notificacion.in-app' => 'required|boolean',
             'cooperativas' => 'nullable|array',
             'cooperativas.*' => 'exists:cooperativas,id',
+            'especialidades' => 'nullable|array',
+            'especialidades.*' => 'exists:especialidades,id',
             'persona_id' => 'nullable|exists:personas,id'
         ]);
         
@@ -120,6 +132,12 @@ class UserController extends Controller
              $user->cooperativas()->sync($request->input('cooperativas', []));
         } else {
              $user->cooperativas()->sync([]);
+        }
+        
+        if (in_array($user->tipo_usuario, ['abogado', 'gestor'])) {
+             $user->especialidades()->sync($request->input('especialidades', []));
+        } else {
+             $user->especialidades()->sync([]); // Limpiar si cambia a un rol no permitido
         }
         
         return to_route('admin.users.index')->with('success', 'Usuario actualizado exitosamente.');

@@ -56,6 +56,17 @@ use App\Http\Controllers\ProcesoRadicadoController;
 use App\Models\ProcesoRadicado;
 use App\Http\Controllers\DocumentoProcesoController;
 
+// =======================================================
+// ===== NUEVAS DECLARACIONES PARA EL CHATBOT ============
+// =======================================================
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
+use App\Models\Message;
+use App\Events\ChatbotResponseReceived;
+// =======================================================
+
+
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -157,9 +168,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('procesos/{proceso}/documentos', [DocumentoProcesoController::class, 'store'])->name('procesos.documentos.store');
     Route::delete('procesos/{proceso}/documentos/{documento}', [DocumentoProcesoController::class, 'destroy'])->name('procesos.documentos.destroy');
     Route::patch('/procesos/{proceso}/close', [ProcesoRadicadoController::class, 'close'])->name('procesos.close');
-    Route::patch('/procesos/{proceso}/reopen', [ProcesoRadicadoController::class, 'reopen'])->name('procesos.reopen'); // <-- AÑADE ESTA LÍNEA
-
-    // ...
+    Route::patch('/procesos/{proceso}/reopen', [ProcesoRadicadoController::class, 'reopen'])->name('procesos.reopen');
 
     // =================================================================
     // ===== RUTAS DE BÚSQUEDA ASÍNCRONA (CORREGIDAS Y UNIFICADAS) =====
@@ -168,11 +177,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/search/cooperativas', [DirectorySearchController::class, 'cooperativas'])->name('cooperativas.search');
     Route::get('/search/personas', [DirectorySearchController::class, 'personas'])->name('personas.search');
     Route::get('/juzgados/search', JuzgadoSearchController::class)->name('juzgados.search');
-    // ===== INICIO DE LA CORRECCIÓN =====
-    // Se añade la ruta que faltaba para buscar tipos de proceso.
     Route::get('/search/tipos-proceso', [DirectorySearchController::class, 'tiposProceso'])->name('tipos-proceso.search');
-    // ===== FIN DE LA CORRECCIÓN =====
-
 
     // --- RUTAS PARA GESTORES Y ABOGADOS (Y ADMINS) ---
     Route::middleware('role:admin,gestor,abogado')->group(function() {
@@ -192,8 +197,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/documentos/generar', [GeneradorDocumentoController::class, 'generar'])->name('documentos.generar');
         Route::get('/documentos/{documento}/descargar-docx', [GeneradorDocumentoController::class, 'descargarDocx'])->name('documentos.descargar.docx');
         Route::get('/documentos/{documento}/descargar-pdf', [GeneradorDocumentoController::class, 'descargarPdf'])->name('documentos.descargar.pdf');
-        Route::get('/procesos-judiciales/{caso}/edit', [ProcesoJudicialController::class, 'edit'])->name('procesos-judiciales.edit'); // Nombre corregido para evitar conflicto
-        Route::put('/procesos-judiciales/{caso}', [ProcesoJudicialController::class, 'update'])->name('procesos-judiciales.update'); // Nombre corregido
+        Route::get('/procesos-judiciales/{caso}/edit', [ProcesoJudicialController::class, 'edit'])->name('procesos-judiciales.edit');
+        Route::put('/procesos-judiciales/{caso}', [ProcesoJudicialController::class, 'update'])->name('procesos-judiciales.update');
 
         // --- GESTIÓN > HONORARIOS ---
         Route::get('/gestion/honorarios', [ContratosController::class, 'index'])->name('gestion.honorarios.index');
@@ -202,16 +207,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/crear', [ContratosController::class, 'create'])->name('create');
             Route::post('/', [ContratosController::class, 'store'])->name('store');
             
-            // ===== INICIO DE LA MODIFICACIÓN =====
-            // Se añaden las nuevas rutas para reestructurar y ver el archivo.
-            // Se colocan antes de las rutas dinámicas con {id} para que funcionen correctamente.
-            Route::get('/{id}/reestructurar', [ContratosController::class, 'reestructurar'])->name('reestructurar');
-            Route::get('/archivado/{id}', [ContratosController::class, 'showArchivado'])->name('showArchivado');
-            // ===== FIN DE LA MODIFICACIÓN =====
-
+            // Rutas específicas (deben ir ANTES de las rutas con parámetros dinámicos)
             Route::get('/pagos/{pago_id}/comprobante', [ContratosController::class, 'verComprobante'])->name('pagos.verComprobante');
             Route::get('/cargos/{cargo_id}/comprobante', [ContratosController::class, 'verCargoComprobante'])->name('cargos.verComprobante');
+            
+            // Rutas con parámetros dinámicos
             Route::get('/{id}', [ContratosController::class, 'show'])->name('show');
+            Route::get('/{id}/reestructurar', [ContratosController::class, 'reestructurar'])->name('reestructurar');
+            Route::get('/archivado/{id}', [ContratosController::class, 'showArchivado'])->name('showArchivado');
+            
+            // Acciones sobre contratos
             Route::post('/{id}/pagar', [ContratosController::class, 'pagar'])->name('pagar');
             Route::post('/{id}/cargos', [ContratosController::class, 'agregarCargo'])->name('cargos.store');
             Route::post('/{contrato_id}/cargos/pagar', [ContratosController::class, 'pagarCargo'])->name('cargos.pagar');
@@ -220,6 +225,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/{id}/saldar', [ContratosController::class, 'saldarContrato'])->name('saldar');
             Route::post('/{id}/reabrir', [ContratosController::class, 'reabrir'])->name('reabrir');
             Route::post('/{id}/resolver-litis', [ContratosController::class, 'resolverLitis'])->name('resolverLitis');
+            
+            // Documentos del contrato - CORREGIDO
+            Route::post('/{id}/documento', [ContratosController::class, 'subirDocumento'])->name('documento.subir');
+            Route::get('/{id}/documento', [ContratosController::class, 'verDocumento'])->name('documento.ver');
+            Route::delete('/{id}/documento', [ContratosController::class, 'eliminarDocumento'])->name('documento.eliminar');
+            
+            // PDFs
             Route::get('/{id}/pdf/contrato', [ContratosController::class, 'pdfContrato'])->name('pdf.contrato');
             Route::get('/{id}/pdf/liquidacion', [ContratosController::class, 'pdfLiquidacion'])->name('pdf.liquidacion');
         });
@@ -268,19 +280,69 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('reporte-cliente/export', [AlertasController::class, 'exportReporteCliente'])->name('reporte-cliente.export');
         Route::get('vigilancia-judicial/export', [AlertasController::class, 'exportVigilanciaJudicial'])->name('vigilancia-judicial.export');
     });
+
+    // =================================================================
+    // ===== INICIO: RUTAS DEL CHATBOT AÑADIDAS AQUÍ ===================
+    // =================================================================
+    Route::post('/chatbot/send', function (Request $request) {
+        $validated = $request->validate([
+            'message' => 'required_without:file|string|max:4096',
+            'file' => 'nullable|file|max:10240',
+        ]);
+        $userMessage = new Message();
+        $userMessage->user_id = Auth::id();
+        $userMessage->body = $validated['message'] ?? null;
+        if ($request->hasFile('file')) {
+            $path = $request->file('file')->store('chat_attachments', 'public');
+            $userMessage->file_url = $path;
+            $userMessage->file_name = $request->file('file')->getClientOriginalName();
+        }
+        $userMessage->save();
+        Http::post('https://cobrocartera.app.n8n.cloud/webhook/mensajes-prueba', [
+            'message' => $userMessage->body,
+            'userId' => $userMessage->user_id,
+            'fileUrl' => $userMessage->file_url ? asset('storage/' . $userMessage->file_url) : null,
+            'fileName' => $userMessage->file_name,
+        ]);
+        return response()->json($userMessage);
+    })->name('chatbot.send');
+    // =================================================================
+    // ===== FIN: RUTA DE ENVÍO DEL CHATBOT ============================
+    // =================================================================
+
 }); // Fin del grupo principal de middleware
 
-// Radicados
+// =================================================================
+// ===== RUTA PÚBLICA PARA NOTIFICACIONES DE N8N =====================
+// =================================================================
+Route::post('/chatbot/notify', function (Request $request) {
+    $validated = $request->validate([
+        'response' => 'required|string',
+        'userId' => 'required|integer',
+    ]);
+
+    $botMessage = Message::create([
+        'user_id' => 0,
+        'body' => $validated['response']
+    ]);
+
+    broadcast(new ChatbotResponseReceived(
+        $botMessage->body,
+        $validated['userId']
+    ));
+
+    return response()->json(['status' => 'notification_sent_to_user']);
+})->name('chatbot.notify');
+
+
+// Radicados - Rutas que necesitan estar fuera del middleware principal
 Route::model('proceso', ProcesoRadicado::class);
-Route::patch('/procesos/{proceso}/close', [ProcesoRadicadoController::class, 'close'])->name('procesos.close');
 
-
-// Ruta de descarga de documentos (requiere autenticación)
+// Rutas de descarga de documentos (requieren autenticación)
 Route::get('documentos-proceso/{documento}', [DocumentoProcesoController::class, 'show'])
     ->middleware('auth')->name('documentos-proceso.show');
 Route::get('documentos-proceso/{documento}/ver', [DocumentoProcesoController::class, 'view'])
     ->middleware('auth')->name('documentos-proceso.view');
-
 Route::get('documentos-proceso/{documento}/descargar', [DocumentoProcesoController::class, 'download'])
     ->middleware('auth')->name('documentos-proceso.download');
 

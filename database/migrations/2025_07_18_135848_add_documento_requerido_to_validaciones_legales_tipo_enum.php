@@ -1,9 +1,7 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -14,9 +12,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Para modificar una columna ENUM, usamos un comando SQL directo.
-        // Esto añade 'documento_requerido' a la lista de opciones sin perder datos.
-        DB::statement("ALTER TABLE validaciones_legales MODIFY COLUMN tipo ENUM('poder_vencido', 'tasa_usura', 'sin_pagare', 'sin_carta_instrucciones', 'sin_certificacion_saldo', 'tipo_proceso_vs_garantia', 'plazo_excedido_sin_demanda', 'documento_faltante_para_radicar', 'documento_requerido') NOT NULL");
+        // En PostgreSQL necesitamos actualizar el CHECK constraint
+        // Primero eliminamos el constraint existente
+        DB::statement('ALTER TABLE validaciones_legales DROP CONSTRAINT IF EXISTS validaciones_legales_tipo_check');
+        
+        // Luego agregamos el nuevo constraint con el valor adicional
+        DB::statement("ALTER TABLE validaciones_legales ADD CONSTRAINT validaciones_legales_tipo_check CHECK (tipo IN ('poder_vencido', 'tasa_usura', 'sin_pagare', 'sin_carta_instrucciones', 'sin_certificacion_saldo', 'tipo_proceso_vs_garantia', 'plazo_excedido_sin_demanda', 'documento_faltante_para_radicar', 'documento_requerido'))");
     }
 
     /**
@@ -26,7 +27,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // Este comando revierte los cambios, eliminando 'documento_requerido' de la lista.
-        DB::statement("ALTER TABLE validaciones_legales MODIFY COLUMN tipo ENUM('poder_vencido', 'tasa_usura', 'sin_pagare', 'sin_carta_instrucciones', 'sin_certificacion_saldo', 'tipo_proceso_vs_garantia', 'plazo_excedido_sin_demanda', 'documento_faltante_para_radicar') NOT NULL");
+        // Revertir: eliminar el constraint y recrear sin 'documento_requerido'
+        DB::statement('ALTER TABLE validaciones_legales DROP CONSTRAINT IF EXISTS validaciones_legales_tipo_check');
+        
+        DB::statement("ALTER TABLE validaciones_legales ADD CONSTRAINT validaciones_legales_tipo_check CHECK (tipo IN ('poder_vencido', 'tasa_usura', 'sin_pagare', 'sin_carta_instrucciones', 'sin_certificacion_saldo', 'tipo_proceso_vs_garantia', 'plazo_excedido_sin_demanda', 'documento_faltante_para_radicar'))");
     }
 };

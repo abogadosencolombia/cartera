@@ -14,15 +14,15 @@ class UpdateCasoRequest extends FormRequest
 
     public function rules(): array
     {
-        $subtipos_proceso = ['CURADURIA', 'DIVISORIO', 'GARANTIA REAL', 'HIPOTECARIO', 'INSOLVENCIA', 'LABORAL', 'MIXTO', 'MUEBLE', 'PAGO DIRECTO', 'PRENDARIO', 'SINGULAR', 'SUCESIÓN'];
-        $etapas_procesales = ['Avalúo y Remate', 'Notificación', 'Contestación Demanda', 'Audiencia Inicial', 'Audiencia de Instrucción y Juzgamiento', 'Sentencia', 'Apelación', 'Ejecución de Sentencia', 'Liquidación', 'Terminación'];
-
         return [
             // --- DATOS BÁSICOS DEL CASO ---
             'cooperativa_id' => ['required', 'exists:cooperativas,id'],
             'user_id' => ['required', 'exists:users,id'],
             'referencia_credito' => ['nullable', 'string', 'max:255'],
-            'tipo_proceso' => ['required', Rule::in(['ejecutivo singular', 'hipotecario', 'prendario', 'libranza'])],
+
+            // ===== REGLA CORREGIDA Y DINÁMICA =====
+            'tipo_proceso' => ['required', 'string', Rule::exists('tipos_proceso', 'nombre')],
+            
             'estado_proceso' => ['required', Rule::in(['prejurídico', 'demandado', 'en ejecución', 'sentencia', 'cerrado'])],
             'tipo_garantia_asociada' => ['required', Rule::in(['codeudor', 'hipotecaria', 'prendaria', 'sin garantía'])],
             'fecha_apertura' => ['required', 'date', 'before_or_equal:today'],
@@ -45,12 +45,13 @@ class UpdateCasoRequest extends FormRequest
             'bloqueado' => ['required', 'boolean'],
             'motivo_bloqueo' => ['nullable', 'string', 'max:1000', 'required_if:bloqueado,true'],
 
-            // --- NUEVAS REGLAS DE VALIDACIÓN ---
-            'subtipo_proceso' => ['nullable', 'string', Rule::in($subtipos_proceso)],
-            'etapa_procesal' => ['nullable', 'string', Rule::in($etapas_procesales)],
+            // ===== REGLAS CORREGIDAS Y DINÁMICAS =====
+            'subtipo_proceso' => ['nullable', 'string', Rule::exists('subtipos_proceso', 'nombre')],
+            'etapa_procesal' => ['nullable', 'string', Rule::exists('etapas_procesales', 'nombre')],
             'juzgado_id' => ['nullable', 'integer', 'exists:juzgados,id'],
         ];
     }
+
     protected function prepareForValidation(): void
     {
         $caso = $this->route('caso');
@@ -74,5 +75,5 @@ class UpdateCasoRequest extends FormRequest
                 'motivo_bloqueo' => $bloqueado ? $this->input('motivo_bloqueo') : null,
             ]);
         }
-}
+    }
 }

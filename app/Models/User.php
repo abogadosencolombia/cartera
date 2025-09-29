@@ -10,7 +10,7 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Casts\Attribute; // <-- 1. IMPORTACIÓN AÑADIDA
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use NotificationChannels\WebPush\HasPushSubscriptions;
 
 class User extends Authenticatable
@@ -65,6 +65,11 @@ class User extends Authenticatable
         return $this->belongsToMany(Cooperativa::class, 'cooperativa_user');
     }
 
+    public function especialidades(): BelongsToMany
+    {
+        return $this->belongsToMany(Especialidad::class, 'especialidad_user');
+    }
+
     public function persona(): BelongsTo
     {
         return $this->belongsTo(Persona::class);
@@ -106,6 +111,18 @@ class User extends Authenticatable
                 }
                 // Si tiene, une todos los nombres con una coma.
                 return $this->cooperativas->pluck('nombre')->join(', ');
+            }
+        );
+    }
+
+    protected function especialidadesDisplay(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                if ($this->especialidades->isEmpty()) {
+                    return 'Ninguna';
+                }
+                return $this->especialidades->pluck('nombre')->join(', ');
             }
         );
     }

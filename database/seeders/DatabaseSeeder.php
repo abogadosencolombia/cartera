@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
             EtapasProcesalesSeeder::class,
             SubtiposProcesoSeeder::class,
             JuzgadoSeeder::class,
+            EspecialidadSeeder::class,
         ]);
 
         // --- SEEDERS DE DESARROLLO (Datos de Prueba) ---

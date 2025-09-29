@@ -136,18 +136,18 @@ class ContratosController extends Controller
             }
 
             $idContrato = DB::table('contratos')->insertGetId([
-                'cliente_id'          => $cliente_id,
-                'monto_total'         => $monto_total,
-                'anticipo'            => $anticipo,
-                'porcentaje_litis'    => $porcentaje_litis,
-                'monto_base_litis'    => null,
-                'modalidad'           => $modalidad,
-                'estado'              => 'ACTIVO',
-                'inicio'              => $inicio,
-                'nota'                => $nota,
-                'contrato_origen_id'  => $contrato_origen_id,
-                'created_at'          => now(),
-                'updated_at'          => now(),
+                'cliente_id'         => $cliente_id,
+                'monto_total'        => $monto_total,
+                'anticipo'           => $anticipo,
+                'porcentaje_litis'   => $porcentaje_litis,
+                'monto_base_litis'   => null,
+                'modalidad'          => $modalidad,
+                'estado'             => 'ACTIVO',
+                'inicio'             => $inicio,
+                'nota'               => $nota,
+                'contrato_origen_id' => $contrato_origen_id,
+                'created_at'         => now(),
+                'updated_at'         => now(),
             ]);
 
             if ($modalidad === 'LITIS') {
@@ -210,9 +210,6 @@ class ContratosController extends Controller
             $cliente = DB::table('personas')->select('id','nombre_completo as nombre')->where('id',$contrato->cliente_id)->first();
         }
 
-        // ====================================================================================
-        // INICIO DE LA MODIFICACIÓN: Cargar clientes y modalidades para el modal
-        // ====================================================================================
         $clientes = [];
         $modalidades = ['CUOTAS','PAGO_UNICO','LITIS','CUOTA_MIXTA'];
 
@@ -225,9 +222,6 @@ class ContratosController extends Controller
                                 ->get();
             }
         } catch (\Throwable $e) {}
-        // ====================================================================================
-        // FIN DE LA MODIFICACIÓN
-        // ====================================================================================
 
         $total_cargos_valor = DB::table('contrato_cargos')->where('contrato_id', $id)->sum('monto');
         $total_pagos_valor  = DB::table('contrato_pagos')->where('contrato_id', $id)->sum('valor');
@@ -251,7 +245,7 @@ class ContratosController extends Controller
         
         return Inertia::render('Gestion/Honorarios/Contratos/Show', compact(
             'contrato', 'contratoOrigen', 'cliente', 'cuotas', 'pagos', 'cargos',
-            'total_cargos_valor', 'total_pagos_valor', 'clientes', 'modalidades' // <-- Añadir 'clientes' y 'modalidades'
+            'total_cargos_valor', 'total_pagos_valor', 'clientes', 'modalidades'
         ));
     }
 
@@ -347,7 +341,7 @@ class ContratosController extends Controller
 
             DB::table('contrato_cargos')->insert([
                 'contrato_id'    => $id,
-                'tipo'           => 'HONORARIO_LITIS',
+                'tipo'           => 'LITIS',
                 'monto'          => $honorarios,
                 'estado'         => 'PENDIENTE',
                 'descripcion'    => "Honorarios del {$contrato->porcentaje_litis}% sobre un monto base de $$monto_base.",
@@ -433,7 +427,7 @@ class ContratosController extends Controller
 
         DB::table('contrato_cargos')->insert([
             'contrato_id'            => $id,
-            'tipo'                   => 'GASTO_REEMBOLSABLE',
+            'tipo'                   => 'GASTO',
             'monto'                  => $request->input('monto'),
             'estado'                 => 'PENDIENTE',
             'descripcion'            => $request->input('descripcion'),
@@ -444,7 +438,7 @@ class ContratosController extends Controller
             'updated_at'             => now(),
         ]);
 
-        return back()->with('success','Gasto reembolsable añadido.');
+        return back()->with('success','Gasto añadido.');
     }
 
     public function activar($id)
@@ -539,25 +533,62 @@ class ContratosController extends Controller
         return response()->view('honorarios.contrato', $data);
     }
 
-    public function pdfLiquidacion($id)
+     public function pdfLiquidacion($id)
     {
         $contrato = DB::table('contratos')->where('id', $id)->first();
         if (!$contrato) abort(404);
 
         $cliente = DB::table('personas')
-                        ->select('nombre_completo as nombre')
+                        ->select('id', 'nombre_completo as nombre')
                         ->where('id', $contrato->cliente_id)
                         ->first();
 
-        $pagos  = DB::table('contrato_pagos')->where('contrato_id', $id)->orderByDesc('fecha')->get();
-        $cuotas = DB::table('contrato_cuotas')->where('contrato_id', $id)->orderBy('numero')->get();
+        // Cargar pagos normales, uniendo la cuota para obtener su número
+        $pagos = DB::table('contrato_pagos as p')
+            ->leftJoin('contrato_cuotas as c', 'p.cuota_id', '=', 'c.id')
+            ->where('p.contrato_id', $id)
+            ->select('p.*', 'c.numero as cuota_numero')
+            ->orderBy('p.fecha')
+            ->get();
+        
+        // ===== INICIO DE LA CORRECCIÓN =====
+        
+        // 2. Cargar SOLO los cargos pagados, uniendo la tabla de pagos para obtener la fecha y nota del pago.
+        $cargosPagados = DB::table('contrato_cargos as cg')
+            ->join('contrato_pagos as p', 'cg.pago_id', '=', 'p.id')
+            ->where('cg.contrato_id', $id)
+            ->where('cg.estado', 'PAGADO')
+            ->select('cg.*', 'p.fecha as fecha_pago_cargo', 'p.nota as nota_pago_cargo')
+            ->get();
+            
+        // ===== FIN DE LA CORRECCIÓN =====
+            
+        // 3. Calcular el valor TOTAL de todos los cargos (pagados y pendientes) para el resumen
+        $totalCargosValor = DB::table('contrato_cargos')
+            ->where('contrato_id', $id)
+            ->sum('monto');
 
-        $data = compact('contrato','cliente','cuotas','pagos');
+        // 4. Obtener cuotas pendientes
+        $cuotasPendientes = DB::table('contrato_cuotas')
+            ->where('contrato_id', $id)
+            ->where('estado', 'PENDIENTE')
+            ->orderBy('numero')
+            ->get();
 
+        $data = compact(
+            'contrato', 
+            'cliente', 
+            'pagos', 
+            'cargosPagados', 
+            'totalCargosValor', 
+            'cuotasPendientes'
+        );
+        
         if (class_exists('\\Barryvdh\\DomPDF\\Facade\\Pdf')) {
             $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('honorarios.liquidacion', $data);
             return $pdf->stream("liquidacion_{$id}.pdf");
         }
+        
         return response()->view('honorarios.liquidacion', $data);
     }
 
@@ -571,5 +602,84 @@ class ContratosController extends Controller
         } elseif ($isManualClosure) {
             DB::table('contratos')->where('id',$contrato_id)->update(['estado'=>'PAGOS_PENDIENTES','updated_at'=>now()]);
         }
+    }
+
+    
+    public function subirDocumento($id, Request $request)
+    {
+        $v = Validator::make($request->all(), [
+            'documento' => ['required', 'file', 'mimes:pdf', 'max:10240'], // 10MB máximo, solo PDF
+        ]);
+        $v->validate();
+
+        $contrato = DB::table('contratos')->where('id', $id)->first();
+        if (!$contrato) {
+            return back()->with('error', 'Contrato no encontrado.');
+        }
+
+        DB::transaction(function () use ($id, $request, $contrato) {
+            // Eliminar documento anterior si existe
+            if ($contrato->documento_contrato) {
+                Storage::disk('public')->delete($contrato->documento_contrato);
+            }
+
+            // Subir nuevo documento
+            $path = $request->file('documento')->store("documentos/contratos/{$id}", 'public');
+
+            // Actualizar registro en base de datos
+            DB::table('contratos')->where('id', $id)->update([
+                'documento_contrato' => $path,
+                'updated_at' => now(),
+            ]);
+        });
+
+        return back()->with('success', 'Documento del contrato subido correctamente.');
+    }
+
+    /**
+     * Ver/descargar documento del contrato
+     */
+    public function verDocumento($id)
+    {
+        $contrato = DB::table('contratos')->where('id', $id)->first();
+        if (!$contrato || !$contrato->documento_contrato) {
+            abort(404, 'Documento no encontrado.');
+        }
+
+        if (!Storage::disk('public')->exists($contrato->documento_contrato)) {
+            abort(404, 'Archivo no encontrado.');
+        }
+
+        return Storage::disk('public')->response($contrato->documento_contrato);
+    }
+
+    /**
+     * Eliminar documento del contrato
+     */
+    public function eliminarDocumento($id)
+    {
+        $contrato = DB::table('contratos')->where('id', $id)->first();
+        if (!$contrato) {
+            return back()->with('error', 'Contrato no encontrado.');
+        }
+
+        if (!$contrato->documento_contrato) {
+            return back()->with('error', 'No hay documento para eliminar.');
+        }
+
+        DB::transaction(function () use ($id, $contrato) {
+            // Eliminar archivo del storage
+            if (Storage::disk('public')->exists($contrato->documento_contrato)) {
+                Storage::disk('public')->delete($contrato->documento_contrato);
+            }
+
+            // Actualizar registro en base de datos
+            DB::table('contratos')->where('id', $id)->update([
+                'documento_contrato' => null,
+                'updated_at' => now(),
+            ]);
+        });
+
+        return back()->with('success', 'Documento eliminado correctamente.');
     }
 }

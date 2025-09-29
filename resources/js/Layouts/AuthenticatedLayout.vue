@@ -426,7 +426,7 @@ onMounted(() => {
         <!-- ================================================================== -->
         <!-- GESTOR DE NOTIFICACIONES (TOASTS)                                  -->
         <!-- ================================================================== -->
-        <ToastList /> <!-- <--- 2. COMPONENTE AÑADIDO -->
+        <ToastList /> <!-- 2. COMPONENTE AÑADIDO -->
 
     </div>
 </template>
