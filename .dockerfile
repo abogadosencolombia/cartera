@@ -11,24 +11,32 @@ RUN apt-get update && apt-get install -y \
     unzip \
     libfreetype6-dev \
     libjpeg62-turbo-dev \
-    libpng-dev \
     libzip-dev \
+    libpq-dev \
     nodejs \
-    npm
+    npm \
+    && rm -rf /var/lib/apt/lists/*
 
-# Limpiar cache
-RUN apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# Instalar extensiones PHP
-RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip
-RUN docker-php-ext-configure gd --with-freetype --with-jpeg
-RUN docker-php-ext-install -j$(nproc) gd
+# Configurar y instalar extensiones PHP
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j$(nproc) \
+        pdo \
+        pdo_pgsql \
+        mbstring \
+        exif \
+        pcntl \
+        bcmath \
+        gd \
+        zip
 
 # Instalar Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
+# Habilitar mod_rewrite
+RUN a2enmod rewrite
+
 # Establecer directorio de trabajo
-WORKDIR /var/www
+WORKDIR /var/www/html
 
 # Copiar composer files
 COPY composer.json composer.lock ./
@@ -40,22 +48,20 @@ RUN composer install --no-scripts --no-autoloader --prefer-dist
 COPY . .
 
 # Instalar dependencias npm y compilar assets
-RUN npm install
-RUN npm run build
+RUN npm install && npm run build
+
+RUN php artisan migrate --force
 
 # Generar autoloader optimizado
 RUN composer dump-autoload --optimize
 
 # Configurar permisos
-RUN chown -R www-data:www-data /var/www \
-    && chmod -R 755 /var/www/storage \
-    && chmod -R 755 /var/www/bootstrap/cache
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 755 /var/www/html/storage \
+    && chmod -R 755 /var/www/html/bootstrap/cache
 
-# Habilitar mod_rewrite
-RUN a2enmod rewrite
-
-# Copiar configuración de Apache
-COPY .docker/apache/000-default.conf /etc/apache2/sites-available/000-default.conf
+# Configurar DocumentRoot para Laravel
+RUN sed -i 's|/var/www/html|/var/www/html/public|g' /etc/apache2/sites-available/000-default.conf
 
 # Puerto
 EXPOSE 80
