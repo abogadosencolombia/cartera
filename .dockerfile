@@ -44,6 +44,8 @@ COPY composer.json composer.lock ./
 # Instalar dependencias PHP
 RUN composer install --no-scripts --no-autoloader --prefer-dist
 
+RUN composer update
+
 # Copiar código fuente
 COPY . .
 
