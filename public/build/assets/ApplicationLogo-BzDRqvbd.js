@@ -1,0 +1,1 @@
+import{_ as o}from"./_plugin-vue_export-helper-DlAUqK2U.js";import{c,o as e}from"./app-CJXh-Pjp.js";const r={},t={src:"/favicon.png",alt:"Logo de la Firma"};function n(a,s){return e(),c("img",t)}const m=o(r,[["render",n]]);export{m as A};
