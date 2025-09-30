@@ -2,16 +2,16 @@
 FROM node:20-alpine AS assets
 WORKDIR /app
 
-# instalar dependencias JS
+# deps JS
 COPY package.json package-lock.json* ./
 RUN npm ci
 
-# copiar código fuente de frontend
+# código frontend y config de Vite/Tailwind
 COPY resources ./resources
 COPY vite.config.js ./
-COPY tailwind.config.js postcss.config.js ./ 2>/dev/null || true
+COPY tailwind.config.js postcss.config.js ./
 
-# compilar assets
+# compilar -> genera public/build/manifest.json
 RUN npm run build
 
 # --- Stage 2: PHP + Laravel ---
@@ -19,32 +19,33 @@ FROM php:8.3-cli-bullseye
 
 ENV COMPOSER_ALLOW_SUPERUSER=1 APP_ENV=production
 
+# paquetes del sistema
 RUN apt-get update && apt-get install -y \
     git unzip libpng-dev libjpeg-dev libfreetype6-dev libwebp-dev \
     libpq-dev libzip-dev zlib1g-dev \
  && rm -rf /var/lib/apt/lists/*
 
+# extensiones PHP
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
  && docker-php-ext-install -j"$(nproc)" gd bcmath zip pdo_pgsql opcache
 RUN pecl install redis && docker-php-ext-enable redis
 
+# composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# instalar dependencias PHP
+# dependencias PHP (sin scripts para cachear capa)
 COPY composer.json composer.lock ./
 RUN composer install --no-dev --no-interaction --prefer-dist --no-scripts
 
-# copiar el resto del proyecto Laravel
+# código Laravel
 COPY . .
 
-# copiar los assets compilados del stage anterior
+# assets compilados desde el stage de Node
 COPY --from=assets /app/public/build ./public/build
 
-# verificar que manifest.json exista (útil en logs)
-RUN ls -la public/build
-
+# autoload y discovery
 RUN composer dump-autoload -o && php artisan package:discover --ansi || true
 
 # entrypoint
