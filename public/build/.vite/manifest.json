@@ -296,6 +296,11 @@
     "file": "assets/vue-select-DA8hhM3z.css",
     "src": "_vue-select-DA8hhM3z.css"
   },
+  "resources/css/app.css": {
+    "file": "assets/app-BAj6yyWr.css",
+    "src": "resources/js/app.js",
+    "isEntry": true
+  },
   "resources/js/Pages/Admin/Auditoria/Index.vue": {
     "file": "assets/Index-CwEfMKEu.js",
     "name": "Index",
