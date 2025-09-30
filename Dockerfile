@@ -1,3 +1,20 @@
+# --- Stage 1: construir assets con Node ---
+FROM node:20-alpine AS assets
+WORKDIR /app
+
+# instalar dependencias JS
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+# copiar código fuente de frontend
+COPY resources ./resources
+COPY vite.config.js ./
+COPY tailwind.config.js postcss.config.js ./ 2>/dev/null || true
+
+# compilar assets
+RUN npm run build
+
+# --- Stage 2: PHP + Laravel ---
 FROM php:8.3-cli-bullseye
 
 ENV COMPOSER_ALLOW_SUPERUSER=1 APP_ENV=production
@@ -15,14 +32,19 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# vendor sin scripts (cache de capas)
+# instalar dependencias PHP
 COPY composer.json composer.lock ./
 RUN composer install --no-dev --no-interaction --prefer-dist --no-scripts
 
-# código app
+# copiar el resto del proyecto Laravel
 COPY . .
 
-# autoload y discover sin romper build
+# copiar los assets compilados del stage anterior
+COPY --from=assets /app/public/build ./public/build
+
+# verificar que manifest.json exista (útil en logs)
+RUN ls -la public/build
+
 RUN composer dump-autoload -o && php artisan package:discover --ansi || true
 
 # entrypoint
