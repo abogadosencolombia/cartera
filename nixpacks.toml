@@ -1,10 +1,7 @@
-# Define la versión de PHP que usará Railway
-[variables]
-NIXPACKS_PHP_VERSION = "8.3"
+providers = ["php", "nginx", "node"]
 
-# Instala las dependencias del sistema y extensiones de PHP
-[phases.setup]
-nixPkgs = [
-    "pkgs.php83Extensions.gd", 
-    "pkgs.php83Extensions.bcmath"
-]
+[phases.build]
+cmds = ["composer install --no-dev --ignore-platform-reqs", "npm install", "npm run build"]
+
+[start]
+cmd = "sh docker/entrypoint.sh"
