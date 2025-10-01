@@ -12,10 +12,16 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     libzip-dev \
     zlib1g-dev \
+    # Añadimos curl para descargar Node.js
+    curl \
     && rm -rf /var/lib/apt/lists/* \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) gd \
     && docker-php-ext-install pdo pdo_pgsql pgsql zip bcmath
+
+# 1.5. Instala Node.js y npm (¡NUEVO!)
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs
 
 # 2. Instala Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -33,10 +39,8 @@ RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cac
 
 # 6. Instala dependencias de Composer y NPM
 RUN composer install --optimize-autoloader --no-dev
+# Esta línea ahora funcionará
 RUN npm install && npm run build
 
 # Expone el puerto 80
 EXPOSE 80
-
-# El comando de inicio ahora se gestionará desde Railway
-# No se necesita CMD aquí
