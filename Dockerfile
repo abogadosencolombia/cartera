@@ -1,56 +1,42 @@
-# --- Stage 1: construir assets con Node ---
-FROM node:20-alpine AS assets
-WORKDIR /app
+# Usa una imagen oficial de PHP con Apache
+FROM php:8.3-apache
 
-# deps JS
-COPY package.json package-lock.json* ./
-RUN npm ci
-
-# código frontend y config de Vite/Tailwind
-COPY resources ./resources
-COPY vite.config.js ./
-COPY tailwind.config.js postcss.config.js ./
-
-# compilar -> genera public/build/manifest.json
-RUN npm run build
-
-# --- Stage 2: PHP + Laravel ---
-FROM php:8.3-cli-bullseye
-
-ENV COMPOSER_ALLOW_SUPERUSER=1 APP_ENV=production
-
-# paquetes del sistema
+# 1. Instala dependencias del sistema y extensiones de PHP
 RUN apt-get update && apt-get install -y \
-    git unzip libpng-dev libjpeg-dev libfreetype6-dev libwebp-dev \
-    libpq-dev libzip-dev zlib1g-dev \
- && rm -rf /var/lib/apt/lists/*
+    git \
+    unzip \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    libwebp-dev \
+    libpq-dev \
+    libzip-dev \
+    zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j$(nproc) gd \
+    && docker-php-ext-install pdo pdo_pgsql pgsql zip bcmath
 
-# extensiones PHP
-RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
- && docker-php-ext-install -j"$(nproc)" gd bcmath zip pdo_pgsql opcache
-RUN pecl install redis && docker-php-ext-enable redis
+# 2. Instala Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# composer
-COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+# 3. Configura Apache para Laravel
+COPY 000-default.conf /etc/apache2/sites-available/000-default.conf
+RUN a2enmod rewrite
 
+# 4. Establece el directorio de trabajo
 WORKDIR /var/www/html
 
-# dependencias PHP (sin scripts para cachear capa)
-COPY composer.json composer.lock ./
-RUN composer install --no-dev --no-interaction --prefer-dist --no-scripts
-
-# código Laravel
+# 5. Copia tu código y establece permisos
 COPY . .
+RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
-# assets compilados desde el stage de Node
-COPY --from=assets /app/public/build ./public/build
+# 6. Instala dependencias de Composer y NPM
+RUN composer install --optimize-autoloader --no-dev
+RUN npm install && npm run build
 
-# autoload y discovery
-RUN composer dump-autoload -o && php artisan package:discover --ansi || true
+# Expone el puerto 80
+EXPOSE 80
 
-# entrypoint
-COPY docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
-EXPOSE 8000
-ENTRYPOINT ["/entrypoint.sh"]
+# El comando de inicio ahora se gestionará desde Railway
+# No se necesita CMD aquí
