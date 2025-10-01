@@ -1,30 +1,20 @@
 # ===================================================
-#      CONFIGURACIÓN DEFINITIVA PARA NIXPACKS
+#      CONFIGURACIÓN PARA NIXPACKS
 # ===================================================
 
-# --- 1. Instala paquetes del sistema (APT) antes que nada ---
-#    Esto fuerza la instalación de las extensiones de PHP.
 [phases.setup]
 aptPkgs = [
     "php8.3-gd", 
     "php8.3-bcmath"
 ]
 
-# --- 2. Define el COMANDO DE CONSTRUCCIÓN (BUILD) ---
-#    Instala dependencias de composer, luego de npm y finalmente compila assets.
 [phases.build]
 cmds = [
     "composer install --no-dev --optimize-autoloader",
-    "npm ci --no-optional",
+    "npm ci",
     "npm run build",
     "php artisan optimize:clear"
 ]
 
-# --- 3. Define el COMANDO DE ARRANQUE (START) ---
 [phases.start]
 cmd = "php artisan migrate --force && php artisan storage:link && php artisan optimize && vendor/bin/heroku-php-apache2 public/"
-
-# --- 4. Define las versiones ---
-[variables]
-PHP_VERSION = "8.3"
-NODE_VERSION = "20"
