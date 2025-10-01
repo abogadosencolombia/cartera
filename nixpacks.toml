@@ -1,19 +1,19 @@
 # Archivo de configuración definitivo para Nixpacks en Railway
 
-# Define las versiones de PHP y Node que se usarán.
+# 1. Define las versiones de PHP y Node.
 [providers]
 php = "8.3"
 node = "20"
 
-# Fase de Instalación (Setup): Añade las extensiones de PHP que faltaban.
+# 2. Fase de Instalación (Setup): Usa 'apt' para forzar la instalación de las extensiones.
+# Este método tiene mayor prioridad y anula la lista por defecto de Railpack.
 [phases.setup]
-nixPkgs = [
-    "pkgs.php83Extensions.gd", 
-    "pkgs.php83Extensions.bcmath",
-    "pkgs.php83Extensions.pgsql"
+aptPkgs = [
+    "php8.3-gd", 
+    "php8.3-bcmath"
 ]
 
-# Fase de Construcción (Build): Instala dependencias y compila los assets.
+# 3. Fase de Construcción (Build): Instala dependencias y compila los assets.
 [phases.build]
 cmds = [
     "composer install --optimize-autoloader --no-dev",
@@ -22,6 +22,6 @@ cmds = [
     "php artisan optimize:clear"
 ]
 
-# Comando de Inicio (Start): Prepara la BD y lanza el servidor.
+# 4. Comando de Inicio (Start): Prepara la BD y lanza el servidor.
 [start]
 cmd = "php artisan migrate --force && php artisan storage:link && php artisan optimize && vendor/bin/heroku-php-apache2 public/"
