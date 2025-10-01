@@ -18,3 +18,7 @@ cmds = [
 
 [phases.start]
 cmd = "php artisan migrate --force && php artisan storage:link && php artisan optimize && vendor/bin/heroku-php-apache2 public/"
+
+# --- Especificar versiones ---
+[variables]
+NODE_VERSION = "22"
