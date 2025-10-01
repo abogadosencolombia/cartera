@@ -11,18 +11,24 @@ php -m | grep -E 'pdo_pgsql|gd|zip|bcmath' || true
 php artisan about || true
 # -------------------------------------------------------
 
-# Limpieza y caches
-php artisan config:clear || true
-php artisan cache:clear  || true
-php artisan route:clear  || true
-php artisan view:clear   || true
+# Instalar dependencias y compilar assets
+echo "Installing NPM dependencies..."
+npm install
+echo "Building assets for production..."
+npm run build
 
-php artisan key:generate --force || true
-php artisan migrate --force      || true
-
+# Comandos de Laravel
+echo "Running Laravel optimizations..."
+php artisan about
+php artisan config:clear
+php artisan cache:clear
+php artisan route:clear
+php artisan view:clear
+php artisan migrate --force
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
+php artisan storage:link
 
 # Servir la app
 exec php -S 0.0.0.0:8000 -t public
