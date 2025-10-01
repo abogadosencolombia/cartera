@@ -6,7 +6,6 @@ php = "8.3"
 node = "20"
 
 # 2. Fase de Instalación (Setup): Usa 'apt' para forzar la instalación de las extensiones.
-# Este método tiene mayor prioridad y anula la lista por defecto de Railpack.
 [phases.setup]
 aptPkgs = [
     "php8.3-gd", 
@@ -23,5 +22,6 @@ cmds = [
 ]
 
 # 4. Comando de Inicio (Start): Prepara la BD y lanza el servidor.
-[start]
+# ¡CORRECCIÓN AQUÍ!
+[phases.start]
 cmd = "php artisan migrate --force && php artisan storage:link && php artisan optimize && vendor/bin/heroku-php-apache2 public/"
