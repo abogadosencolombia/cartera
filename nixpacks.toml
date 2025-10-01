@@ -1,24 +1,30 @@
 # ===================================================
-#      CONFIGURACIÓN PARA NIXPACKS
+#      CONFIGURACIÓN DEFINITIVA PARA NIXPACKS
 # ===================================================
 
+# --- 1. Define las versiones de PHP y Node.js (¡SECCIÓN CORREGIDA!) ---
+[providers]
+php = "8.3"
+node = "20"
+
+# --- 2. Instala paquetes del sistema (APT) antes que nada ---
+#    Esto fuerza la instalación de las extensiones de PHP.
 [phases.setup]
 aptPkgs = [
     "php8.3-gd", 
     "php8.3-bcmath"
 ]
 
+# --- 3. Define el COMANDO DE CONSTRUCCIÓN (BUILD) ---
+#    Instala dependencias de composer, luego de npm y finalmente compila assets.
 [phases.build]
 cmds = [
     "composer install --no-dev --optimize-autoloader",
-    "npm ci",
+    "npm ci --no-optional",
     "npm run build",
     "php artisan optimize:clear"
 ]
 
+# --- 4. Define el COMANDO DE ARRANQUE (START) ---
 [phases.start]
 cmd = "php artisan migrate --force && php artisan storage:link && php artisan optimize && vendor/bin/heroku-php-apache2 public/"
-
-# --- Especificar versiones ---
-[variables]
-NODE_VERSION = "22"
