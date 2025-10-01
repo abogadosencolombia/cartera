@@ -25,7 +25,6 @@ cmds = [
     "php artisan optimize:clear"
 ]
 
-# --- 4. Define el COMANDO DE ARRANQUE (START) ---
-#    Ejecuta migraciones y lanza el servidor web.
+# --- 4. Define el COMANDO DE ARRANQUE (START) --- ¡CORREGIDO!
 [phases.start]
 cmd = "php artisan migrate --force && php artisan storage:link && php artisan optimize && vendor/bin/heroku-php-apache2 public/"
